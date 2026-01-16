@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Workspace } from '../types';
 
 interface WorkspaceListProps {
@@ -21,7 +21,7 @@ export function WorkspaceList({
   const [name, setName] = useState('');
   const [path, setPath] = useState(defaultPath);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     const trimmedName = name.trim();
     const trimmedPath = path.trim() || defaultPath;

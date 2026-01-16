@@ -30,20 +30,24 @@ export function DeckList({
         </button>
       </div>
       <div className="panel-body">
-        {decks.map((deck) => (
-          <button
-            key={deck.id}
-            type="button"
-            className={`deck-item ${
-              deck.id === activeDeckId ? 'is-active' : ''
-            }`}
-            onClick={() => onSelect(deck.id)}
-          >
-            <div className="deck-name">{deck.name}</div>
-            <div className="deck-root">{deck.workspaceName}</div>
-            <div className="deck-root">{deck.root}</div>
-          </button>
-        ))}
+        {decks.length === 0 ? (
+          <div className="empty-state">デッキがありません。</div>
+        ) : (
+          decks.map((deck) => (
+            <button
+              key={deck.id}
+              type="button"
+              className={`deck-item ${
+                deck.id === activeDeckId ? 'is-active' : ''
+              }`}
+              onClick={() => onSelect(deck.id)}
+            >
+              <div className="deck-name">{deck.name}</div>
+              <div className="deck-root">{deck.workspaceName}</div>
+              <div className="deck-root">{deck.root}</div>
+            </button>
+          ))
+        )}
       </div>
     </section>
   );
