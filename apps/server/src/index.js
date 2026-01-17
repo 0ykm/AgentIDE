@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -9,7 +10,7 @@ import { WebSocketServer } from 'ws';
 import { spawn } from 'node-pty';
 import { DatabaseSync } from 'node:sqlite';
 
-const DEFAULT_ROOT = process.env.DEFAULT_ROOT || process.cwd();
+const DEFAULT_ROOT = process.env.DEFAULT_ROOT || os.homedir();
 const PORT = Number(process.env.PORT || 8787);
 
 const app = express();

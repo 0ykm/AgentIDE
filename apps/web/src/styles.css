@@ -145,6 +145,24 @@ textarea {
 .panel-subtitle {
   font-size: 12px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal .panel-subtitle {
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.modal .tree-label {
+  white-space: normal;
+  word-break: break-all;
+}
+
+.modal .tree-row {
+  align-items: flex-start;
 }
 
 .panel-body {
@@ -299,11 +317,13 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px;
-  width: min(420px, 92vw);
+  width: max-content;
+  max-width: 96vw;
   display: grid;
   gap: 12px;
   max-height: 80vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: var(--shadow);
 }
 
