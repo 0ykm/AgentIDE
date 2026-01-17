@@ -4,6 +4,7 @@ import {
   listDecks,
   createDeck as apiCreateDeck,
   createTerminal as apiCreateTerminal,
+  deleteTerminal as apiDeleteTerminal,
   listTerminals
 } from '../api';
 import { getErrorMessage, createEmptyDeckState } from '../utils';
@@ -142,12 +143,38 @@ export const useDecks = ({
     [updateDeckState]
   );
 
+  const handleDeleteTerminal = useCallback(
+    async (deckId: string, terminalId: string) => {
+      try {
+        await apiDeleteTerminal(terminalId);
+        updateDeckState(deckId, (state) => {
+          const newTerminals = state.terminals.filter((t) => t.id !== terminalId);
+          const newActiveId =
+            state.activeTerminalId === terminalId
+              ? newTerminals[0]?.id ?? null
+              : state.activeTerminalId;
+          return {
+            ...state,
+            terminals: newTerminals,
+            activeTerminalId: newActiveId
+          };
+        });
+      } catch (error: unknown) {
+        setStatusMessage(
+          `\u30bf\u30fc\u30df\u30ca\u30eb\u3092\u524a\u9664\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f: ${getErrorMessage(error)}`
+        );
+      }
+    },
+    [updateDeckState, setStatusMessage]
+  );
+
   return {
     decks,
     activeDeckId,
     setActiveDeckId,
     handleCreateDeck,
     handleCreateTerminal,
-    handleSelectTerminal
+    handleSelectTerminal,
+    handleDeleteTerminal
   };
 };

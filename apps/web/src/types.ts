@@ -20,10 +20,14 @@ export type {
   SaveFileRequest,
   GetFileRequest,
   GetFilesRequest,
-  GetPreviewRequest
+  GetPreviewRequest,
+  GitFileStatusCode,
+  GitFileStatus,
+  GitStatus,
+  GitDiff
 } from '@deck-ide/shared/types';
 
-export type AppView = 'workspace' | 'terminal';
+export type AppView = 'workspace' | 'terminal' | 'git';
 export type WorkspaceMode = 'list' | 'editor';
 export type ThemeMode = 'light' | 'dark';
 

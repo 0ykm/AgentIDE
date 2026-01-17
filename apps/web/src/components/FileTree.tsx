@@ -1,10 +1,20 @@
-import type { FileTreeNode } from '../types';
+import type { FileTreeNode, GitFileStatus } from '../types';
 
 const LABEL_LOADING = '\u8aad\u307f\u8fbc\u307f\u4e2d...';
 const LABEL_FILES = '\u30d5\u30a1\u30a4\u30eb';
 const LABEL_REFRESH = '\u66f4\u65b0';
 const LABEL_EMPTY = '\u30d5\u30a1\u30a4\u30eb\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002';
 const LABEL_BACK = '\u623b\u308b';
+
+function getGitStatusClass(
+  path: string,
+  gitFiles: GitFileStatus[] | undefined
+): string {
+  if (!gitFiles) return '';
+  const file = gitFiles.find((f) => f.path === path || path.endsWith(f.path));
+  if (!file) return '';
+  return `git-tree-${file.status}`;
+}
 
 const ChevronIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="tree-chevron-icon">
@@ -55,41 +65,45 @@ const renderEntries = (
   depth: number,
   mode: 'tree' | 'navigator',
   onToggleDir: (node: FileTreeNode) => void,
-  onOpenFile: (node: FileTreeNode) => void
+  onOpenFile: (node: FileTreeNode) => void,
+  gitFiles?: GitFileStatus[]
 ): JSX.Element[] =>
-  entries.map((entry) => (
-    <div key={entry.path}>
-      <button
-        type="button"
-        className={`tree-row ${
-          entry.type === 'dir' ? 'is-dir' : ''
-        } ${mode === 'tree' && entry.expanded ? 'is-open' : ''}`}
-        style={{ paddingLeft: 12 + depth * 16 }}
-        onClick={() =>
-          entry.type === 'dir' ? onToggleDir(entry) : onOpenFile(entry)
-        }
-        aria-expanded={
-          entry.type === 'dir' && mode === 'tree' ? entry.expanded : undefined
-        }
-        title={entry.path}
-      >
-        <span className="tree-chevron" aria-hidden="true">
-          {entry.type === 'dir' ? <ChevronIcon /> : null}
-        </span>
-        <span className={`tree-icon ${entry.type}`} aria-hidden="true">
-          {entry.type === 'dir' ? <FolderIcon /> : <FileIcon />}
-        </span>
-        <span className="tree-label">{entry.name}</span>
-        {entry.loading ? <span className="tree-meta">{LABEL_LOADING}</span> : null}
-      </button>
-      {mode === 'tree' &&
-      entry.expanded &&
-      entry.children &&
-      entry.children.length > 0
-        ? renderEntries(entry.children, depth + 1, mode, onToggleDir, onOpenFile)
-        : null}
-    </div>
-  ));
+  entries.map((entry) => {
+    const gitClass = entry.type === 'file' ? getGitStatusClass(entry.path, gitFiles) : '';
+    return (
+      <div key={entry.path}>
+        <button
+          type="button"
+          className={`tree-row ${
+            entry.type === 'dir' ? 'is-dir' : ''
+          } ${mode === 'tree' && entry.expanded ? 'is-open' : ''} ${gitClass}`}
+          style={{ paddingLeft: 12 + depth * 16 }}
+          onClick={() =>
+            entry.type === 'dir' ? onToggleDir(entry) : onOpenFile(entry)
+          }
+          aria-expanded={
+            entry.type === 'dir' && mode === 'tree' ? entry.expanded : undefined
+          }
+          title={entry.path}
+        >
+          <span className="tree-chevron" aria-hidden="true">
+            {entry.type === 'dir' ? <ChevronIcon /> : null}
+          </span>
+          <span className={`tree-icon ${entry.type}`} aria-hidden="true">
+            {entry.type === 'dir' ? <FolderIcon /> : <FileIcon />}
+          </span>
+          <span className="tree-label">{entry.name}</span>
+          {entry.loading ? <span className="tree-meta">{LABEL_LOADING}</span> : null}
+        </button>
+        {mode === 'tree' &&
+        entry.expanded &&
+        entry.children &&
+        entry.children.length > 0
+          ? renderEntries(entry.children, depth + 1, mode, onToggleDir, onOpenFile, gitFiles)
+          : null}
+      </div>
+    );
+  });
 
 interface FileTreeProps {
   root: string;
@@ -102,6 +116,7 @@ interface FileTreeProps {
   onToggleDir: (node: FileTreeNode) => void;
   onOpenFile: (node: FileTreeNode) => void;
   onRefresh: () => void;
+  gitFiles?: GitFileStatus[];
 }
 
 export function FileTree({
@@ -114,7 +129,8 @@ export function FileTree({
   onBack,
   onToggleDir,
   onOpenFile,
-  onRefresh
+  onRefresh,
+  gitFiles
 }: FileTreeProps) {
   const safeEntries = entries ?? [];
   return (
@@ -146,7 +162,7 @@ export function FileTree({
         {safeEntries.length === 0 && !loading ? (
           <div className="tree-state">{LABEL_EMPTY}</div>
         ) : null}
-        {renderEntries(safeEntries, 0, mode, onToggleDir, onOpenFile)}
+        {renderEntries(safeEntries, 0, mode, onToggleDir, onOpenFile, gitFiles)}
       </div>
     </section>
   );

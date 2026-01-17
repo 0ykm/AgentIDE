@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DeckList } from './components/DeckList';
 import { DeckModal } from './components/DeckModal';
+import { DiffViewer } from './components/DiffViewer';
 import { EditorPane } from './components/EditorPane';
 import { FileTree } from './components/FileTree';
 import { SideNav } from './components/SideNav';
+import { SourceControl } from './components/SourceControl';
 import { StatusMessage } from './components/StatusMessage';
 import { TerminalPane } from './components/TerminalPane';
 import { WorkspaceList } from './components/WorkspaceList';
@@ -14,6 +16,7 @@ import { useDeckState } from './hooks/useDeckState';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useDecks } from './hooks/useDecks';
 import { useFileOperations } from './hooks/useFileOperations';
+import { useGitState } from './hooks/useGitState';
 import type { AppView, WorkspaceMode } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
@@ -54,7 +57,7 @@ export default function App() {
       setWorkspaceStates
     });
 
-  const { decks, activeDeckId, setActiveDeckId, handleCreateDeck, handleCreateTerminal, handleSelectTerminal } =
+  const { decks, activeDeckId, setActiveDeckId, handleCreateDeck, handleCreateTerminal, handleSelectTerminal, handleDeleteTerminal } =
     useDecks({
       setStatusMessage,
       initializeDeckStates,
@@ -81,6 +84,19 @@ export default function App() {
       updateWorkspaceState,
       setStatusMessage
     });
+
+  const {
+    gitState,
+    refreshGitStatus,
+    handleStageFile,
+    handleUnstageFile,
+    handleStageAll,
+    handleUnstageAll,
+    handleCommit,
+    handleDiscardFile,
+    handleShowDiff,
+    handleCloseDiff
+  } = useGitState(editorWorkspaceId, setStatusMessage);
 
   const wsBase = getWsBase();
   const workspaceById = useMemo(
@@ -161,6 +177,12 @@ export default function App() {
     }
   }, [workspaceMode, editorWorkspaceId]);
 
+  useEffect(() => {
+    if (view === 'git' && editorWorkspaceId) {
+      refreshGitStatus();
+    }
+  }, [view, editorWorkspaceId, refreshGitStatus]);
+
   const handleOpenDeckModal = useCallback(() => {
     if (workspaces.length === 0) {
       setStatusMessage(MESSAGE_WORKSPACE_REQUIRED);
@@ -229,6 +251,14 @@ export default function App() {
     [activeDeckId, handleSelectTerminal]
   );
 
+  const handleTerminalDelete = useCallback(
+    (terminalId: string) => {
+      if (!activeDeckId) return;
+      handleDeleteTerminal(activeDeckId, terminalId);
+    },
+    [activeDeckId, handleDeleteTerminal]
+  );
+
   const handleToggleDeckList = useCallback(() => {
     setIsDeckDrawerOpen((prev) => !prev);
   }, []);
@@ -270,6 +300,7 @@ export default function App() {
           onToggleDir={handleToggleDir}
           onOpenFile={handleOpenFile}
           onRefresh={handleRefreshTree}
+          gitFiles={gitState.status?.files}
         />
         <EditorPane
           files={activeWorkspaceState.files}
@@ -346,6 +377,7 @@ export default function App() {
             wsBase={wsBase}
             onSelectTerminal={handleTerminalSelect}
             onNewTerminal={handleNewTerminal}
+            onDeleteTerminal={handleTerminalDelete}
           />
         ) : (
           <div className="panel empty-panel">
@@ -356,6 +388,8 @@ export default function App() {
     </div>
   );
 
+  const gitChangeCount = gitState.status?.files.length ?? 0;
+
   return (
     <div className="app" data-view={view}>
       <SideNav
@@ -363,9 +397,37 @@ export default function App() {
         onSelect={setView}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        gitChangeCount={gitChangeCount}
       />
       <main className="main">
-        {view === 'workspace' ? workspaceView : terminalView}
+        {view === 'workspace' && workspaceView}
+        {view === 'git' && (
+          <div className="git-view">
+            <SourceControl
+              status={gitState.status}
+              loading={gitState.loading}
+              error={gitState.error}
+              workspaceId={editorWorkspaceId}
+              onRefresh={refreshGitStatus}
+              onStageFile={handleStageFile}
+              onUnstageFile={handleUnstageFile}
+              onStageAll={handleStageAll}
+              onUnstageAll={handleUnstageAll}
+              onCommit={handleCommit}
+              onDiscardFile={handleDiscardFile}
+              onShowDiff={handleShowDiff}
+            />
+            {gitState.diffPath && (
+              <DiffViewer
+                diff={gitState.diff}
+                loading={gitState.diffLoading}
+                theme={theme}
+                onClose={handleCloseDiff}
+              />
+            )}
+          </div>
+        )}
+        {view === 'terminal' && terminalView}
       </main>
       <StatusMessage message={statusMessage} />
       <WorkspaceModal

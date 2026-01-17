@@ -1,10 +1,34 @@
 import crypto from 'node:crypto';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Workspace } from '../types.js';
 import { DEFAULT_ROOT } from '../config.js';
 import { createHttpError, handleError, readJson } from '../utils/error.js';
 import { normalizeWorkspacePath, getWorkspaceKey, getWorkspaceName } from '../utils/path.js';
+
+const MAX_NAME_LENGTH = 100;
+const NAME_PATTERN = /^[\p{L}\p{N}\s\-_.]+$/u; // Unicode letters, numbers, spaces, hyphens, underscores, dots
+
+function validateName(name: string | undefined): string | undefined {
+  if (!name) {
+    return undefined;
+  }
+  if (typeof name !== 'string') {
+    throw createHttpError('name must be a string', 400);
+  }
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  if (trimmed.length > MAX_NAME_LENGTH) {
+    throw createHttpError(`name is too long (max: ${MAX_NAME_LENGTH} characters)`, 400);
+  }
+  if (!NAME_PATTERN.test(trimmed)) {
+    throw createHttpError('name contains invalid characters', 400);
+  }
+  return trimmed;
+}
 
 export function createWorkspaceRouter(
   db: DatabaseSync,
@@ -23,9 +47,10 @@ export function createWorkspaceRouter(
     if (workspacePathIndex.has(key)) {
       throw createHttpError('Workspace path already exists', 409);
     }
+    const validatedName = validateName(name);
     const workspace: Workspace = {
       id: crypto.randomUUID(),
-      name: name || getWorkspaceName(resolvedPath, workspaces.size + 1),
+      name: validatedName || getWorkspaceName(resolvedPath, workspaces.size + 1),
       path: resolvedPath,
       createdAt: new Date().toISOString()
     };
@@ -62,8 +87,13 @@ export function createWorkspaceRouter(
 }
 
 export function getConfigHandler() {
-  return (c: any) => {
-    return c.json({ defaultRoot: normalizeWorkspacePath(DEFAULT_ROOT) });
+  return (c: Context) => {
+    try {
+      return c.json({ defaultRoot: normalizeWorkspacePath(DEFAULT_ROOT) });
+    } catch (error) {
+      console.error('Failed to get config:', error);
+      return c.json({ defaultRoot: '' });
+    }
   };
 }
 

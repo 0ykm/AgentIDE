@@ -128,3 +128,31 @@ export interface GetPreviewRequest {
   path: string;
   subpath?: string;
 }
+
+// Git types
+
+export type GitFileStatusCode =
+  | 'modified'
+  | 'staged'
+  | 'untracked'
+  | 'deleted'
+  | 'renamed'
+  | 'conflicted';
+
+export interface GitFileStatus {
+  path: string;
+  status: GitFileStatusCode;
+  staged: boolean;
+}
+
+export interface GitStatus {
+  isGitRepo: boolean;
+  branch: string;
+  files: GitFileStatus[];
+}
+
+export interface GitDiff {
+  original: string;
+  modified: string;
+  path: string;
+}

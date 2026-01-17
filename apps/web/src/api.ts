@@ -1,4 +1,4 @@
-import type { Deck, FileSystemEntry, Workspace } from './types';
+import type { Deck, FileSystemEntry, Workspace, GitStatus, GitDiff } from './types';
 import { API_BASE } from './constants';
 
 const HTTP_STATUS_NO_CONTENT = 204;
@@ -25,6 +25,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 const CONTENT_TYPE_JSON = 'application/json';
 const HTTP_METHOD_POST = 'POST';
 const HTTP_METHOD_PUT = 'PUT';
+const HTTP_METHOD_DELETE = 'DELETE';
 
 /**
  * Converts HTTP(S) base URL to WebSocket URL
@@ -151,4 +152,97 @@ export function listTerminals(
   return request<{ id: string; title: string }[]>(
     `/api/terminals?${query.toString()}`
   );
+}
+
+/**
+ * Deletes a terminal session
+ */
+export function deleteTerminal(terminalId: string): Promise<void> {
+  return request<void>(`/api/terminals/${terminalId}`, {
+    method: HTTP_METHOD_DELETE
+  });
+}
+
+/**
+ * Fetches Git status for a workspace
+ */
+export function getGitStatus(workspaceId: string): Promise<GitStatus> {
+  const query = new URLSearchParams({ workspaceId });
+  return request<GitStatus>(`/api/git/status?${query.toString()}`);
+}
+
+/**
+ * Stages files for commit
+ */
+export function stageFiles(
+  workspaceId: string,
+  paths: string[]
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>('/api/git/stage', {
+    method: HTTP_METHOD_POST,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify({ workspaceId, paths })
+  });
+}
+
+/**
+ * Unstages files from commit
+ */
+export function unstageFiles(
+  workspaceId: string,
+  paths: string[]
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>('/api/git/unstage', {
+    method: HTTP_METHOD_POST,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify({ workspaceId, paths })
+  });
+}
+
+/**
+ * Commits staged changes
+ */
+export function commitChanges(
+  workspaceId: string,
+  message: string
+): Promise<{
+  success: boolean;
+  commit: string;
+  summary: { changes: number; insertions: number; deletions: number };
+}> {
+  return request('/api/git/commit', {
+    method: HTTP_METHOD_POST,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify({ workspaceId, message })
+  });
+}
+
+/**
+ * Discards changes to files
+ */
+export function discardChanges(
+  workspaceId: string,
+  paths: string[]
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>('/api/git/discard', {
+    method: HTTP_METHOD_POST,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify({ workspaceId, paths })
+  });
+}
+
+/**
+ * Gets diff for a file
+ */
+export function getGitDiff(
+  workspaceId: string,
+  path: string,
+  staged: boolean
+): Promise<GitDiff> {
+  const query = new URLSearchParams({
+    workspaceId,
+    path,
+    staged: staged.toString()
+  });
+  return request<GitDiff>(`/api/git/diff?${query.toString()}`);
 }

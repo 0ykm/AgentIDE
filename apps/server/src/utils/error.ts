@@ -7,6 +7,8 @@ import {
   getErrorMessage as sharedGetErrorMessage
 } from '@deck-ide/shared/utils-node';
 
+export type { HttpError };
+
 export function createHttpError(message: string, status: number): HttpError {
   return sharedCreateHttpError(message, status) as HttpError;
 }

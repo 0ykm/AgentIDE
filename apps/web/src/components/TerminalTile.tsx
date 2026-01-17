@@ -15,6 +15,7 @@ interface TerminalTileProps {
   wsUrl: string;
   isActive: boolean;
   onFocus: () => void;
+  onDelete: () => void;
 }
 
 const TEXT_BOOT = 'ターミナルを起動しました: ';
@@ -26,7 +27,8 @@ export function TerminalTile({
   session,
   wsUrl,
   isActive,
-  onFocus
+  onFocus,
+  onDelete
 }: TerminalTileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -111,6 +113,17 @@ export function TerminalTile({
     >
       <div className="terminal-tile-header">
         <span>{session.title}</span>
+        <button
+          type="button"
+          className="terminal-close-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          aria-label="ターミナルを閉じる"
+        >
+          ×
+        </button>
       </div>
       <div className="terminal-tile-body" ref={containerRef} />
     </div>

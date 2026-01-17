@@ -6,6 +6,9 @@ import { TERMINAL_BUFFER_LIMIT } from '../config.js';
 import { createHttpError, handleError, readJson } from '../utils/error.js';
 import { getDefaultShell } from '../utils/shell.js';
 
+// Track terminal index per deck for unique naming
+const deckTerminalCounters = new Map<string, number>();
+
 export function createTerminalRouter(
   decks: Map<string, Deck>,
   terminals: Map<string, TerminalSession>
@@ -13,37 +16,49 @@ export function createTerminalRouter(
   const router = new Hono();
 
   function appendToTerminalBuffer(session: TerminalSession, data: string): void {
-    session.buffer += data;
-    if (session.buffer.length > TERMINAL_BUFFER_LIMIT) {
-      session.buffer = session.buffer.slice(
-        session.buffer.length - TERMINAL_BUFFER_LIMIT
-      );
+    // Limit buffer size to prevent memory issues
+    const newBuffer = session.buffer + data;
+    if (newBuffer.length > TERMINAL_BUFFER_LIMIT) {
+      session.buffer = newBuffer.slice(newBuffer.length - TERMINAL_BUFFER_LIMIT);
+    } else {
+      session.buffer = newBuffer;
     }
   }
 
   function getNextTerminalIndex(deckId: string): number {
-    let count = 0;
-    terminals.forEach((session) => {
-      if (session.deckId === deckId) {
-        count += 1;
-      }
-    });
-    return count + 1;
+    const current = deckTerminalCounters.get(deckId) ?? 0;
+    const next = current + 1;
+    deckTerminalCounters.set(deckId, next);
+    return next;
   }
 
   function createTerminalSession(deck: Deck, title?: string): TerminalSession {
     const id = crypto.randomUUID();
     const shell = getDefaultShell();
-    const env = {
-      ...process.env,
-      TERM: process.env.TERM || 'xterm-256color'
-    };
-    const term = spawn(shell, [], {
-      cwd: deck.root,
-      cols: 120,
-      rows: 32,
-      env
-    });
+    const env: Record<string, string> = {};
+
+    // Copy environment variables safely
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        env[key] = value;
+      }
+    }
+    env.TERM = env.TERM || 'xterm-256color';
+
+    let term;
+    try {
+      term = spawn(shell, [], {
+        cwd: deck.root,
+        cols: 120,
+        rows: 32,
+        env
+      });
+    } catch (spawnError) {
+      const message = spawnError instanceof Error ? spawnError.message : 'Failed to spawn terminal';
+      console.error(`Failed to spawn terminal for deck ${deck.id}:`, spawnError);
+      throw createHttpError(`Failed to create terminal: ${message}`, 500);
+    }
+
     const resolvedTitle = title || `Terminal ${getNextTerminalIndex(deck.id)}`;
     const session: TerminalSession = {
       id,
@@ -56,25 +71,49 @@ export function createTerminalRouter(
       lastActive: Date.now(),
       dispose: null
     };
-    session.dispose = term.onData((data) => {
-      appendToTerminalBuffer(session, data);
-      session.lastActive = Date.now();
-      session.sockets.forEach((socket) => {
-        if (socket.readyState === 1) {
-          socket.send(data);
+
+    // Set up data handler
+    try {
+      session.dispose = term.onData((data) => {
+        try {
+          appendToTerminalBuffer(session, data);
+          session.lastActive = Date.now();
+          session.sockets.forEach((socket) => {
+            try {
+              if (socket.readyState === 1) {
+                socket.send(data);
+              }
+            } catch (sendError) {
+              console.error(`Failed to send data to socket:`, sendError);
+            }
+          });
+        } catch (dataError) {
+          console.error(`Error in terminal data handler:`, dataError);
         }
       });
-    });
-    term.onExit(() => {
+    } catch (onDataError) {
+      console.error(`Failed to set up terminal data handler:`, onDataError);
+      try {
+        term.kill();
+      } catch {
+        // Ignore kill error
+      }
+      throw createHttpError('Failed to set up terminal', 500);
+    }
+
+    // Set up exit handler
+    term.onExit(({ exitCode }) => {
+      console.log(`Terminal ${id} exited with code ${exitCode}`);
       session.sockets.forEach((socket) => {
         try {
           socket.close();
         } catch {
-          // ignore
+          // Ignore close errors
         }
       });
       terminals.delete(id);
     });
+
     terminals.set(id, session);
     return session;
   }
@@ -102,15 +141,56 @@ export function createTerminalRouter(
     try {
       const body = await readJson<{ deckId?: string; title?: string }>(c);
       const deckId = body?.deckId;
-      if (!deckId || !decks.has(deckId)) {
+      if (!deckId) {
         throw createHttpError('deckId is required', 400);
       }
       const deck = decks.get(deckId);
       if (!deck) {
-        throw createHttpError('deck not found', 404);
+        throw createHttpError('Deck not found', 404);
       }
       const session = createTerminalSession(deck, body?.title);
       return c.json({ id: session.id, title: session.title }, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  router.delete('/:id', async (c) => {
+    try {
+      const terminalId = c.req.param('id');
+      const session = terminals.get(terminalId);
+      if (!session) {
+        throw createHttpError('Terminal not found', 404);
+      }
+
+      // Close all WebSocket connections
+      session.sockets.forEach((socket) => {
+        try {
+          socket.close();
+        } catch (closeError) {
+          console.error(`Failed to close socket for terminal ${terminalId}:`, closeError);
+        }
+      });
+
+      // Dispose the data listener
+      if (session.dispose) {
+        try {
+          session.dispose.dispose();
+        } catch (disposeError) {
+          console.error(`Failed to dispose terminal ${terminalId}:`, disposeError);
+        }
+      }
+
+      // Kill the terminal process
+      try {
+        session.term.kill();
+      } catch (killError) {
+        console.error(`Failed to kill terminal ${terminalId}:`, killError);
+      }
+
+      // Remove from map
+      terminals.delete(terminalId);
+      return c.body(null, 204);
     } catch (error) {
       return handleError(c, error);
     }

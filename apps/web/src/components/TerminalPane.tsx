@@ -7,6 +7,7 @@ interface TerminalPaneProps {
   wsBase: string;
   onSelectTerminal: (terminalId: string) => void;
   onNewTerminal: () => void;
+  onDeleteTerminal: (terminalId: string) => void;
 }
 
 const LABEL_TERMINAL = '\u30bf\u30fc\u30df\u30ca\u30eb';
@@ -19,7 +20,8 @@ export function TerminalPane({
   activeTerminalId,
   wsBase,
   onSelectTerminal,
-  onNewTerminal
+  onNewTerminal,
+  onDeleteTerminal
 }: TerminalPaneProps) {
   return (
     <section className="panel terminal-view">
@@ -45,6 +47,7 @@ export function TerminalPane({
               wsUrl={`${wsBase}/api/terminals/${terminal.id}`}
               isActive={terminal.id === activeTerminalId}
               onFocus={() => onSelectTerminal(terminal.id)}
+              onDelete={() => onDeleteTerminal(terminal.id)}
             />
           ))}
         </div>
