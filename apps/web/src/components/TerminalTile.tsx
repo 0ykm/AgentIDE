@@ -3,6 +3,12 @@ import { Terminal, type IDisposable } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import type { TerminalSession } from '../types';
+import {
+  TERMINAL_FONT_FAMILY,
+  TERMINAL_FONT_SIZE,
+  TERMINAL_BACKGROUND_COLOR,
+  TERMINAL_FOREGROUND_COLOR
+} from '../constants';
 
 interface TerminalTileProps {
   session: TerminalSession;
@@ -11,9 +17,10 @@ interface TerminalTileProps {
   onFocus: () => void;
 }
 
-const TEXT_BOOT = '\u30bf\u30fc\u30df\u30ca\u30eb\u3092\u8d77\u52d5\u3057\u307e\u3057\u305f: ';
-const TEXT_CONNECTED = '\u63a5\u7d9a\u3057\u307e\u3057\u305f\u3002';
-const TEXT_CLOSED = '\u5207\u65ad\u3057\u307e\u3057\u305f\u3002';
+const TEXT_BOOT = 'ターミナルを起動しました: ';
+const TEXT_CONNECTED = '接続しました。';
+const TEXT_CLOSED = '切断しました。';
+const RESIZE_MESSAGE_PREFIX = '\u0000resize:';
 
 export function TerminalTile({
   session,
@@ -32,11 +39,11 @@ export function TerminalTile({
     containerRef.current.innerHTML = '';
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: '"JetBrains Mono", monospace',
-      fontSize: 13,
+      fontFamily: TERMINAL_FONT_FAMILY,
+      fontSize: TERMINAL_FONT_SIZE,
       theme: {
-        background: '#000000',
-        foreground: '#ffffff'
+        background: TERMINAL_BACKGROUND_COLOR,
+        foreground: TERMINAL_FOREGROUND_COLOR
       }
     });
     const fitAddon = new FitAddon();
@@ -52,7 +59,7 @@ export function TerminalTile({
       const cols = term.cols;
       const rows = term.rows;
       if (!cols || !rows) return;
-      socket.send(`\u0000resize:${cols},${rows}`);
+      socket.send(`${RESIZE_MESSAGE_PREFIX}${cols},${rows}`);
     };
 
     const resizeObserver = new ResizeObserver(() => {

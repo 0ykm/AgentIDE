@@ -1,55 +1,41 @@
-export type FileEntryType = 'file' | 'dir';
+// Re-export shared types from @deck-ide/shared
+export type {
+  FileEntryType,
+  Workspace,
+  Deck,
+  FileSystemEntry,
+  FileTreeNode,
+  EditorFile,
+  TerminalSession,
+  WorkspaceState,
+  DeckState,
+  ApiError,
+  ApiConfig,
+  ApiFileResponse,
+  ApiFileSaveResponse,
+  ApiTerminalCreateResponse,
+  CreateWorkspaceRequest,
+  CreateDeckRequest,
+  CreateTerminalRequest,
+  SaveFileRequest,
+  GetFileRequest,
+  GetFilesRequest,
+  GetPreviewRequest
+} from '@deck-ide/shared/types';
 
-export interface Deck {
-  id: string;
-  name: string;
-  root: string;
-  workspaceId: string;
-  createdAt: string;
+export type AppView = 'workspace' | 'terminal';
+export type WorkspaceMode = 'list' | 'editor';
+export type ThemeMode = 'light' | 'dark';
+
+export interface UrlState {
+  view: AppView;
+  workspaceId: string | null;
+  deckId: string | null;
+  workspaceMode: WorkspaceMode;
 }
 
-export interface FileSystemEntry {
+export interface DeckListItem {
+  id: string;
   name: string;
   path: string;
-  type: FileEntryType;
-}
-
-export interface FileTreeNode extends FileSystemEntry {
-  expanded: boolean;
-  loading: boolean;
-  children?: FileTreeNode[];
-}
-
-export interface EditorFile {
-  id: string;
-  name: string;
-  path: string;
-  language: string;
-  contents: string;
-  dirty: boolean;
-}
-
-export interface TerminalSession {
-  id: string;
-  title: string;
-}
-
-export interface Workspace {
-  id: string;
-  name: string;
-  path: string;
-}
-
-export interface WorkspaceState {
-  files: EditorFile[];
-  activeFileId: string | null;
-  tree: FileTreeNode[];
-  treeLoading: boolean;
-  treeError: string | null;
-}
-
-export interface DeckState {
-  terminals: TerminalSession[];
-  activeTerminalId: string | null;
-  terminalsLoaded: boolean;
 }

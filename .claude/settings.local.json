@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ls:*)",
+      "Bash(npm run build:server:*)",
+      "Bash(npm run build:web:*)",
+      "Bash(npm run build:desktop:*)",
+      "Bash(npx tsc:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash)",
+      "Bash(node -c:*)",
+      "Bash(npm run build:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(node --check:*)",
+      "Bash(find . -type f -name \"*.ts\" -exec sh -c 'echo \"\"{}:\"\"; wc -l \"\"{}\"\" | awk \"\"{print \\\\$1}\"\"' ;)",
+      "Bash(timeout 5 npm start)",
+      "Bash(tree:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

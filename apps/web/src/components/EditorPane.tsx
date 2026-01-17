@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import type { EditorFile } from '../types';
+import { EDITOR_FONT_FAMILY, EDITOR_FONT_SIZE } from '../constants';
 
 interface EditorPaneProps {
   files: EditorFile[];
@@ -12,10 +13,12 @@ interface EditorPaneProps {
   theme: 'light' | 'dark';
 }
 
-const LABEL_EDITOR = '\u30a8\u30c7\u30a3\u30bf';
-const LABEL_SAVING = '\u4fdd\u5b58\u4e2d...';
-const LABEL_SAVE = '\u4fdd\u5b58';
-const LABEL_EMPTY = '\u30d5\u30a1\u30a4\u30eb\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002';
+const LABEL_EDITOR = 'エディタ';
+const LABEL_SAVING = '保存中...';
+const LABEL_SAVE = '保存';
+const LABEL_EMPTY = 'ファイルを選択してください。';
+const MONACO_THEME_DARK = 'vs-dark';
+const MONACO_THEME_LIGHT = 'vs';
 
 export function EditorPane({
   files,
@@ -77,13 +80,13 @@ export function EditorPane({
         {activeFile ? (
           <Editor
             height="100%"
-            theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+            theme={theme === 'dark' ? MONACO_THEME_DARK : MONACO_THEME_LIGHT}
             language={activeFile.language}
             value={activeFile.contents}
             onChange={(value) => onChangeFile(activeFile.id, value ?? '')}
             options={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 14,
+              fontFamily: EDITOR_FONT_FAMILY,
+              fontSize: EDITOR_FONT_SIZE,
               minimap: { enabled: false },
               smoothScrolling: true
             }}
