@@ -818,6 +818,203 @@ export default function App() {
   const isWorkspaceEditorOpen =
     workspaceMode === 'editor' && Boolean(editorWorkspaceId);
 
+  const workspaceModal = isWorkspaceModalOpen ? (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <form className="modal" onSubmit={handleSubmitWorkspace}>
+        <div className="modal-title">
+          {'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u8ffd\u52a0'}
+        </div>
+        <label className="field">
+          <span>{'\u30d1\u30b9'}</span>
+          <input
+            type="text"
+            value={workspacePathDraft}
+            placeholder={defaultRoot || ''}
+            onChange={(event) => setWorkspacePathDraft(event.target.value)}
+          />
+        </label>
+        <div className="modal-explorer">
+          <FileTree
+            root={previewRoot}
+            entries={previewTree}
+            loading={previewLoading}
+            error={previewError}
+            onToggleDir={handlePreviewToggleDir}
+            onOpenFile={() => undefined}
+            onRefresh={handlePreviewRefresh}
+          />
+        </div>
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => setIsWorkspaceModalOpen(false)}
+          >
+            {'\u30ad\u30e3\u30f3\u30bb\u30eb'}
+          </button>
+          <button type="submit" className="primary-button">
+            {'\u8ffd\u52a0'}
+          </button>
+        </div>
+      </form>
+    </div>
+  ) : null;
+
+  const workspaceEditor = isWorkspaceEditorOpen ? (
+    <div className="workspace-editor-overlay">
+      <div className="workspace-editor-header">
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={handleCloseWorkspaceEditor}
+        >
+          {'\u4e00\u89a7\u306b\u623b\u308b'}
+        </button>
+        <div className="workspace-meta">
+          {activeWorkspace ? (
+            <span className="workspace-path">{activeWorkspace.path}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="workspace-editor-grid">
+        <FileTree
+          root={activeWorkspace?.path || defaultRoot || ''}
+          entries={activeWorkspaceState.tree}
+          loading={activeWorkspaceState.treeLoading}
+          error={activeWorkspaceState.treeError}
+          onToggleDir={handleToggleDir}
+          onOpenFile={handleOpenFile}
+          onRefresh={handleRefreshTree}
+        />
+        <EditorPane
+          files={activeWorkspaceState.files}
+          activeFileId={activeWorkspaceState.activeFileId}
+          onSelectFile={(fileId) => {
+            if (!editorWorkspaceId) return;
+            updateWorkspaceState(editorWorkspaceId, (state) => ({
+              ...state,
+              activeFileId: fileId
+            }));
+          }}
+          onChangeFile={handleFileChange}
+          onSaveFile={handleSaveFile}
+          savingFileId={savingFileId}
+          theme={theme}
+        />
+      </div>
+    </div>
+  ) : null;
+
+  const workspaceView = (
+    <div className="workspace-view">
+      <div className="workspace-start">
+        <button
+          type="button"
+          className="primary-button"
+          onClick={handleOpenWorkspaceModal}
+        >
+          {'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u8ffd\u52a0'}
+        </button>
+        <WorkspaceList
+          workspaces={workspaces}
+          selectedWorkspaceId={editorWorkspaceId}
+          onSelect={handleSelectWorkspace}
+        />
+      </div>
+      {workspaceEditor}
+      {workspaceModal}
+    </div>
+  );
+
+  const deckModal = isDeckModalOpen ? (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <form className="modal" onSubmit={handleSubmitDeck}>
+        <div className="modal-title">{'\u30c7\u30c3\u30ad\u4f5c\u6210'}</div>
+        <label className="field">
+          <span>{'\u30c7\u30c3\u30ad\u540d (\u4efb\u610f)'}</span>
+          <input
+            type="text"
+            value={deckNameDraft}
+            placeholder={'\u7a7a\u767d\u306e\u307e\u307e\u3067\u3082OK'}
+            onChange={(event) => setDeckNameDraft(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>{'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9'}</span>
+          <select
+            value={deckWorkspaceId}
+            onChange={(event) => setDeckWorkspaceId(event.target.value)}
+          >
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.path}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => setIsDeckModalOpen(false)}
+          >
+            {'\u30ad\u30e3\u30f3\u30bb\u30eb'}
+          </button>
+          <button type="submit" className="primary-button">
+            {'\u4f5c\u6210'}
+          </button>
+        </div>
+      </form>
+    </div>
+  ) : null;
+
+  const terminalView = (
+    <div className="terminal-layout">
+      <button
+        type="button"
+        className={`deck-handle ${isDeckDrawerOpen ? 'is-open' : ''}`}
+        onClick={handleToggleDeckList}
+        onKeyDown={handleDeckHandleKeyDown}
+        aria-label={
+          isDeckDrawerOpen
+            ? '\u30c7\u30c3\u30ad\u3092\u9589\u3058\u308b'
+            : '\u30c7\u30c3\u30ad\u3092\u958b\u304f'
+        }
+        title={
+          isDeckDrawerOpen
+            ? '\u30c7\u30c3\u30ad\u3092\u9589\u3058\u308b'
+            : '\u30c7\u30c3\u30ad\u3092\u958b\u304f'
+        }
+      >
+        <span className="deck-handle-bars" aria-hidden="true" />
+      </button>
+      <aside className={`deck-drawer ${isDeckDrawerOpen ? 'is-open' : ''}`}>
+        <DeckList
+          decks={deckListItems}
+          activeDeckId={activeDeckId}
+          onSelect={handleSelectDeck}
+          onCreate={handleOpenDeckModal}
+        />
+      </aside>
+      <div className="terminal-stage">
+        {activeDeckId ? (
+          <TerminalPane
+            terminals={activeDeckState.terminals}
+            activeTerminalId={activeDeckState.activeTerminalId}
+            wsBase={wsBase}
+            onSelectTerminal={handleSelectTerminal}
+            onNewTerminal={handleCreateTerminal}
+          />
+        ) : (
+          <div className="panel empty-panel">
+            {'\u30c7\u30c3\u30ad\u3092\u4f5c\u6210\u3057\u3066\u304f\u3060\u3055\u3044\u3002'}
+          </div>
+        )}
+      </div>
+      {deckModal}
+    </div>
+  );
+
   return (
     <div className="app" data-view={view}>
       <SideNav
@@ -827,200 +1024,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
       />
       <main className="main">
-        {view === 'workspace' ? (
-          <div className="workspace-view">
-            <div className="workspace-start">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={handleOpenWorkspaceModal}
-              >
-                {'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u8ffd\u52a0'}
-              </button>
-            <WorkspaceList
-              workspaces={workspaces}
-              selectedWorkspaceId={editorWorkspaceId}
-              onSelect={handleSelectWorkspace}
-            />
-            </div>
-            {isWorkspaceEditorOpen ? (
-              <div className="workspace-editor-overlay">
-                <div className="workspace-editor-header">
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={handleCloseWorkspaceEditor}
-                  >
-                    {'\u4e00\u89a7\u306b\u623b\u308b'}
-                  </button>
-                  <div className="workspace-meta">
-                    {activeWorkspace ? (
-                      <span className="workspace-path">{activeWorkspace.path}</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="workspace-editor-grid">
-                  <FileTree
-                      root={activeWorkspace?.path || defaultRoot || ''}
-                    entries={activeWorkspaceState.tree}
-                    loading={activeWorkspaceState.treeLoading}
-                    error={activeWorkspaceState.treeError}
-                    onToggleDir={handleToggleDir}
-                    onOpenFile={handleOpenFile}
-                    onRefresh={handleRefreshTree}
-                  />
-                  <EditorPane
-                    files={activeWorkspaceState.files}
-                    activeFileId={activeWorkspaceState.activeFileId}
-                    onSelectFile={(fileId) => {
-                      if (!editorWorkspaceId) return;
-                      updateWorkspaceState(editorWorkspaceId, (state) => ({
-                        ...state,
-                        activeFileId: fileId
-                      }));
-                    }}
-                    onChangeFile={handleFileChange}
-                    onSaveFile={handleSaveFile}
-                    savingFileId={savingFileId}
-                    theme={theme}
-                  />
-                </div>
-              </div>
-            ) : null}
-            {isWorkspaceModalOpen ? (
-              <div className="modal-backdrop" role="dialog" aria-modal="true">
-                <form className="modal" onSubmit={handleSubmitWorkspace}>
-                  <div className="modal-title">
-                    {'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u8ffd\u52a0'}
-                  </div>
-                  <label className="field">
-                    <span>{'\u30d1\u30b9'}</span>
-                    <input
-                      type="text"
-                      value={workspacePathDraft}
-                      placeholder={defaultRoot || ''}
-                      onChange={(event) =>
-                        setWorkspacePathDraft(event.target.value)
-                      }
-                    />
-                  </label>
-                  <div className="modal-explorer">
-                    <FileTree
-                      root={previewRoot}
-                      entries={previewTree}
-                      loading={previewLoading}
-                      error={previewError}
-                      onToggleDir={handlePreviewToggleDir}
-                      onOpenFile={() => undefined}
-                      onRefresh={handlePreviewRefresh}
-                    />
-                  </div>
-                  <div className="modal-actions">
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => setIsWorkspaceModalOpen(false)}
-                    >
-                      {'\u30ad\u30e3\u30f3\u30bb\u30eb'}
-                    </button>
-                    <button type="submit" className="primary-button">
-                      {'\u8ffd\u52a0'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="terminal-layout">
-            <button
-              type="button"
-              className={`deck-handle ${isDeckDrawerOpen ? 'is-open' : ''}`}
-              onClick={handleToggleDeckList}
-              onKeyDown={handleDeckHandleKeyDown}
-              aria-label={
-                isDeckDrawerOpen
-                  ? '\u30c7\u30c3\u30ad\u3092\u9589\u3058\u308b'
-                  : '\u30c7\u30c3\u30ad\u3092\u958b\u304f'
-              }
-              title={
-                isDeckDrawerOpen
-                  ? '\u30c7\u30c3\u30ad\u3092\u9589\u3058\u308b'
-                  : '\u30c7\u30c3\u30ad\u3092\u958b\u304f'
-              }
-            >
-              <span className="deck-handle-bars" aria-hidden="true" />
-            </button>
-            <aside
-              className={`deck-drawer ${isDeckDrawerOpen ? 'is-open' : ''}`}
-            >
-              <DeckList
-                decks={deckListItems}
-                activeDeckId={activeDeckId}
-                onSelect={handleSelectDeck}
-                onCreate={handleOpenDeckModal}
-              />
-            </aside>
-            <div className="terminal-stage">
-              {activeDeckId ? (
-                <TerminalPane
-                  terminals={activeDeckState.terminals}
-                  activeTerminalId={activeDeckState.activeTerminalId}
-                  wsBase={wsBase}
-                  onSelectTerminal={handleSelectTerminal}
-                  onNewTerminal={handleCreateTerminal}
-                />
-              ) : (
-                <div className="panel empty-panel">
-                  {'\u30c7\u30c3\u30ad\u3092\u4f5c\u6210\u3057\u3066\u304f\u3060\u3055\u3044\u3002'}
-                </div>
-              )}
-            </div>
-            {isDeckModalOpen ? (
-              <div className="modal-backdrop" role="dialog" aria-modal="true">
-                <form className="modal" onSubmit={handleSubmitDeck}>
-                  <div className="modal-title">
-                    {'\u30c7\u30c3\u30ad\u4f5c\u6210'}
-                  </div>
-                  <label className="field">
-                    <span>{'\u30c7\u30c3\u30ad\u540d (\u4efb\u610f)'}</span>
-                    <input
-                      type="text"
-                      value={deckNameDraft}
-                      placeholder={'\u7a7a\u767d\u306e\u307e\u307e\u3067\u3082OK'}
-                      onChange={(event) => setDeckNameDraft(event.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>{'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9'}</span>
-                    <select
-                      value={deckWorkspaceId}
-                      onChange={(event) => setDeckWorkspaceId(event.target.value)}
-                    >
-                      {workspaces.map((workspace) => (
-                        <option key={workspace.id} value={workspace.id}>
-                          {workspace.path}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="modal-actions">
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => setIsDeckModalOpen(false)}
-                    >
-                      {'\u30ad\u30e3\u30f3\u30bb\u30eb'}
-                    </button>
-                    <button type="submit" className="primary-button">
-                      {'\u4f5c\u6210'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            ) : null}
-          </div>
-        )}
+        {view === 'workspace' ? workspaceView : terminalView}
       </main>
       {statusMessage ? (
         <div className="status-float" role="status">

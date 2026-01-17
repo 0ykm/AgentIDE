@@ -22,7 +22,7 @@ export function TerminalPane({
   onNewTerminal
 }: TerminalPaneProps) {
   return (
-    <section className="terminal-view">
+    <section className="panel terminal-view">
       <div className="terminal-header">
         <div>
           <div className="panel-title">{LABEL_TERMINAL}</div>

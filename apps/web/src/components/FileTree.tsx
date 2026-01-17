@@ -5,6 +5,50 @@ const LABEL_FILES = '\u30d5\u30a1\u30a4\u30eb';
 const LABEL_REFRESH = '\u66f4\u65b0';
 const LABEL_EMPTY = '\u30d5\u30a1\u30a4\u30eb\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002';
 
+const ChevronIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="tree-chevron-icon">
+    <path
+      d="M9 6l6 6-6 6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const FolderIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="tree-svg">
+    <path
+      d="M3.5 7.5h6l2 2h9a1 1 0 0 1 1 1V18a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V7.5z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const FileIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="tree-svg">
+    <path
+      d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V5A1.5 1.5 0 0 1 6 3.5z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 3.5V8h4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const renderEntries = (
   entries: FileTreeNode[],
   depth: number,
@@ -15,14 +59,21 @@ const renderEntries = (
     <div key={entry.path}>
       <button
         type="button"
-        className={`tree-row ${entry.type === 'dir' ? 'is-dir' : ''}`}
+        className={`tree-row ${
+          entry.type === 'dir' ? 'is-dir' : ''
+        } ${entry.expanded ? 'is-open' : ''}`}
         style={{ paddingLeft: 12 + depth * 16 }}
         onClick={() =>
           entry.type === 'dir' ? onToggleDir(entry) : onOpenFile(entry)
         }
+        aria-expanded={entry.type === 'dir' ? entry.expanded : undefined}
+        title={entry.path}
       >
-        <span className="tree-icon">
-          {entry.type === 'dir' ? (entry.expanded ? 'v' : '>') : '-'}
+        <span className="tree-chevron" aria-hidden="true">
+          {entry.type === 'dir' ? <ChevronIcon /> : null}
+        </span>
+        <span className={`tree-icon ${entry.type}`} aria-hidden="true">
+          {entry.type === 'dir' ? <FolderIcon /> : <FileIcon />}
         </span>
         <span className="tree-label">{entry.name}</span>
         {entry.loading ? <span className="tree-meta">{LABEL_LOADING}</span> : null}
