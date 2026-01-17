@@ -17,6 +17,12 @@ export const DeckModal = ({
   const [deckWorkspaceId, setDeckWorkspaceId] = useState(workspaces[0]?.id || '');
   const [deckNameDraft, setDeckNameDraft] = useState('');
 
+  useEffect(() => {
+    if (isOpen && workspaces.length > 0 && !deckWorkspaceId) {
+      setDeckWorkspaceId(workspaces[0].id);
+    }
+  }, [isOpen, workspaces, deckWorkspaceId]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     await onSubmit(deckNameDraft.trim(), deckWorkspaceId);
