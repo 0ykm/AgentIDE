@@ -5,18 +5,24 @@ interface TerminalPaneProps {
   terminals: TerminalSession[];
   wsBase: string;
   onNewTerminal: () => void;
+  onNewClaudeTerminal: () => void;
+  onNewCodexTerminal: () => void;
   onDeleteTerminal: (terminalId: string) => void;
 }
 
 const LABEL_TERMINAL = 'ターミナル';
 const LABEL_MULTI = 'デッキごとに複数起動';
 const LABEL_ADD = 'ターミナル追加';
+const LABEL_CLAUDE = 'Claude';
+const LABEL_CODEX = 'Codex';
 const LABEL_EMPTY = 'ターミナルを追加してください。';
 
 export function TerminalPane({
   terminals,
   wsBase,
   onNewTerminal,
+  onNewClaudeTerminal,
+  onNewCodexTerminal,
   onDeleteTerminal
 }: TerminalPaneProps) {
   return (
@@ -29,6 +35,12 @@ export function TerminalPane({
         <div className="terminal-actions">
           <button type="button" className="chip" onClick={onNewTerminal}>
             {LABEL_ADD}
+          </button>
+          <button type="button" className="chip" onClick={onNewClaudeTerminal}>
+            {LABEL_CLAUDE}
+          </button>
+          <button type="button" className="chip" onClick={onNewCodexTerminal}>
+            {LABEL_CODEX}
           </button>
         </div>
       </div>

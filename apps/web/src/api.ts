@@ -133,12 +133,13 @@ export function writeFile(
  */
 export function createTerminal(
   deckId: string,
-  title?: string
+  title?: string,
+  command?: string
 ): Promise<{ id: string; title: string }> {
   return request<{ id: string; title: string }>('/api/terminals', {
     method: HTTP_METHOD_POST,
     headers: { 'Content-Type': CONTENT_TYPE_JSON },
-    body: JSON.stringify({ deckId, title })
+    body: JSON.stringify({ deckId, title, command })
   });
 }
 

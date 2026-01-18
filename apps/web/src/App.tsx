@@ -262,6 +262,22 @@ export default function App() {
     handleCreateTerminal(activeDeckId, activeDeckState.terminals.length);
   }, [activeDeckId, activeDeckState.terminals.length, handleCreateTerminal]);
 
+  const handleNewClaudeTerminal = useCallback(() => {
+    if (!activeDeckId) {
+      setStatusMessage(MESSAGE_SELECT_DECK);
+      return;
+    }
+    handleCreateTerminal(activeDeckId, activeDeckState.terminals.length, 'claude', 'Claude Code');
+  }, [activeDeckId, activeDeckState.terminals.length, handleCreateTerminal]);
+
+  const handleNewCodexTerminal = useCallback(() => {
+    if (!activeDeckId) {
+      setStatusMessage(MESSAGE_SELECT_DECK);
+      return;
+    }
+    handleCreateTerminal(activeDeckId, activeDeckState.terminals.length, 'codex', 'Codex');
+  }, [activeDeckId, activeDeckState.terminals.length, handleCreateTerminal]);
+
   const handleTerminalDelete = useCallback(
     (terminalId: string) => {
       if (!activeDeckId) return;
@@ -461,6 +477,8 @@ export default function App() {
             terminals={activeDeckState.terminals}
             wsBase={wsBase}
             onNewTerminal={handleNewTerminal}
+            onNewClaudeTerminal={handleNewClaudeTerminal}
+            onNewCodexTerminal={handleNewCodexTerminal}
             onDeleteTerminal={handleTerminalDelete}
           />
         ) : (

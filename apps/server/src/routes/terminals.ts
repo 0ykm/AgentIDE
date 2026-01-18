@@ -32,9 +32,9 @@ export function createTerminalRouter(
     return next;
   }
 
-  function createTerminalSession(deck: Deck, title?: string): TerminalSession {
+  function createTerminalSession(deck: Deck, title?: string, command?: string): TerminalSession {
     const id = crypto.randomUUID();
-    const shell = getDefaultShell();
+    const shell = command || getDefaultShell();
     const env: Record<string, string> = {};
 
     // Copy environment variables safely
@@ -251,7 +251,7 @@ export function createTerminalRouter(
 
   router.post('/', async (c) => {
     try {
-      const body = await readJson<{ deckId?: string; title?: string }>(c);
+      const body = await readJson<{ deckId?: string; title?: string; command?: string }>(c);
       const deckId = body?.deckId;
       if (!deckId) {
         throw createHttpError('deckId is required', 400);
@@ -260,7 +260,7 @@ export function createTerminalRouter(
       if (!deck) {
         throw createHttpError('Deck not found', 404);
       }
-      const session = createTerminalSession(deck, body?.title);
+      const session = createTerminalSession(deck, body?.title, body?.command);
       return c.json({ id: session.id, title: session.title }, 201);
     } catch (error) {
       return handleError(c, error);

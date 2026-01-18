@@ -99,11 +99,11 @@ export const useDecks = ({
   );
 
   const handleCreateTerminal = useCallback(
-    async (deckId: string, terminalsCount: number) => {
+    async (deckId: string, terminalsCount: number, command?: string, customTitle?: string) => {
       try {
         const index = terminalsCount + 1;
-        const title = `ターミナル ${index}`;
-        const session = await apiCreateTerminal(deckId, title);
+        const title = customTitle || `ターミナル ${index}`;
+        const session = await apiCreateTerminal(deckId, title, command);
         updateDeckState(deckId, (state) => {
           const terminal = {
             id: session.id,
