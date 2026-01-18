@@ -40,6 +40,13 @@
       "server/**/*",
       "node_modules/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "node_modules/@deck-ide",
+        "to": "app.asar.unpacked/node_modules/@deck-ide",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": "nsis"
     }
