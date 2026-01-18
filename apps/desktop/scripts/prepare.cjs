@@ -8,7 +8,8 @@ const webDist = path.resolve(rootDir, 'apps', 'web', 'dist');
 const sharedSrc = path.resolve(rootDir, 'packages', 'shared');
 const serverDest = path.resolve(desktopDir, 'server');
 const webDest = path.resolve(desktopDir, 'web', 'dist');
-const sharedDest = path.resolve(desktopDir, 'packages', 'shared');
+const nodeModulesDir = path.resolve(desktopDir, 'node_modules');
+const sharedModuleDest = path.resolve(nodeModulesDir, '@deck-ide', 'shared');
 
 const removeIfExists = (target) => {
   if (fs.existsSync(target)) {
@@ -26,12 +27,12 @@ const copyDir = (from, to) => {
 
 removeIfExists(serverDest);
 removeIfExists(path.resolve(desktopDir, 'web'));
-removeIfExists(path.resolve(desktopDir, 'packages'));
+removeIfExists(path.resolve(desktopDir, 'node_modules', '@deck-ide'));
 
 copyDir(serverSrc, serverDest);
 copyDir(webDist, webDest);
-copyDir(sharedSrc, sharedDest);
+copyDir(sharedSrc, sharedModuleDest);
 
 console.log(`Prepared server -> ${serverDest}`);
 console.log(`Prepared web dist -> ${webDest}`);
-console.log(`Prepared shared -> ${sharedDest}`);
+console.log(`Prepared shared -> ${sharedModuleDest}`);

@@ -13,7 +13,8 @@ const { DEFAULT_PORT } = require('./constants.cjs');
  */
 const resolveServerEntry = () => {
   if (app.isPackaged) {
-    return path.join(app.getAppPath(), 'server', 'index.js');
+    // asarUnpackされたserverディレクトリを参照
+    return path.join(process.resourcesPath, 'app.asar.unpacked', 'server', 'index.js');
   }
   return path.resolve(__dirname, '..', '..', 'server', 'dist', 'index.js');
 };
@@ -30,10 +31,9 @@ const resolveNodeBinary = () => {
  */
 const getNodePath = () => {
   const candidates = [
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules'),
     path.join(app.getAppPath(), 'node_modules'),
-    path.join(process.resourcesPath, 'node_modules'),
-    path.join(app.getAppPath(), 'packages'),
-    path.join(process.resourcesPath, 'app.asar.unpacked', 'packages')
+    path.join(process.resourcesPath, 'node_modules')
   ];
   return candidates
     .filter((candidate) => fs.existsSync(candidate))
