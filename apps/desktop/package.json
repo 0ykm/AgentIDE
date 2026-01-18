@@ -38,6 +38,7 @@
     "asarUnpack": [
       "**/node-pty/**",
       "server/**/*",
+      "web/**/*",
       "node_modules/**/*"
     ],
     "extraResources": [

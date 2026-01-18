@@ -38,9 +38,16 @@ export const WS_RATE_LIMIT_MAX_MESSAGES = 100;
 export const MAX_REQUEST_BODY_SIZE = Number(process.env.MAX_REQUEST_BODY_SIZE || 1024 * 1024); // 1MB default
 export const TRUST_PROXY = process.env.TRUST_PROXY === 'true'; // Only trust proxy headers if explicitly enabled
 
-export const distDir = path.resolve(__dirname, '..', '..', 'web', 'dist');
+// In packaged app: server is at app.asar.unpacked/server/, web is at app.asar.unpacked/web/dist/
+// In development: server is at apps/server/dist/, web is at apps/web/dist/
+const packagedDistDir = path.resolve(__dirname, '..', 'web', 'dist');
+const devDistDir = path.resolve(__dirname, '..', '..', 'web', 'dist');
+export const distDir = fsSync.existsSync(packagedDistDir) ? packagedDistDir : devDistDir;
 export const hasStatic = fsSync.existsSync(distDir);
-export const dataDir = path.resolve(__dirname, '..', '..', 'data');
+
+const packagedDataDir = path.resolve(__dirname, '..', 'data');
+const devDataDir = path.resolve(__dirname, '..', '..', 'data');
+export const dataDir = fsSync.existsSync(path.dirname(packagedDataDir)) && !fsSync.existsSync(devDataDir) ? packagedDataDir : devDataDir;
 export const dbPath = process.env.DB_PATH || path.join(dataDir, 'deck-ide.db');
 
 // Validate critical configuration
