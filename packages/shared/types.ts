@@ -184,3 +184,36 @@ export interface MultiRepoGitStatus {
   repos: GitRepoInfo[];
   files: GitFileStatusWithRepo[];
 }
+
+// Remote Node types
+
+export type NodeStatus = 'online' | 'offline' | 'connecting' | 'error';
+
+export interface RemoteNode {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  isLocal: boolean;
+  createdAt: string;
+}
+
+export interface RemoteNodeWithStatus extends RemoteNode {
+  status: NodeStatus;
+  lastSeen: string | null;
+  version?: string;
+  error?: string;
+}
+
+export interface NodeInfo {
+  id: string;
+  name: string;
+  version: string;
+  capabilities: string[];
+}
+
+export interface RegisterNodeRequest {
+  name: string;
+  host: string;
+  port: number;
+}
