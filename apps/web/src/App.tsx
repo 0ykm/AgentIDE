@@ -22,7 +22,7 @@ import { getConfig, getWsBase } from './api';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useDeckState } from './hooks/useDeckState';
 import { useWorkspaces } from './hooks/useWorkspaces';
-import { useDecks } from './hooks/useDecks';
+import { useDecks, type TerminalApi } from './hooks/useDecks';
 import { useDeckGroups } from './hooks/useDeckGroups';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
@@ -100,6 +100,18 @@ export default function App() {
 
   const remoteDeckIds = useMemo(() => remoteDecks.map(d => d.id), [remoteDecks]);
 
+  const getTerminalApi = useCallback((deckId: string): TerminalApi | undefined => {
+    const remoteDeck = remoteDecks.find(d => d.id === deckId);
+    if (!remoteDeck) return undefined;
+    const client = getNodeClient(remoteDeck.nodeId);
+    if (!client) return undefined;
+    return {
+      createTerminal: (id, title, command) => client.createTerminal(id, title, command),
+      deleteTerminal: (id) => client.deleteTerminal(id),
+      listTerminals: (id) => client.listTerminals(id),
+    };
+  }, [remoteDecks, getNodeClient]);
+
   const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleUpdateDeck, handleDeleteDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
     useDecks({
       setStatusMessage,
@@ -108,7 +120,8 @@ export default function App() {
       deckStates,
       setDeckStates,
       initialDeckIds: initialUrlState.deckIds,
-      remoteDeckIds
+      remoteDeckIds,
+      getTerminalApi
     });
 
   const { deckGroups, handleCreateDeckGroup, handleUpdateDeckGroup, handleDeleteDeckGroup } =

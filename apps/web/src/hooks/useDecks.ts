@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Deck, TerminalLayout } from '../types';
 import {
   listDecks,
@@ -11,6 +11,12 @@ import {
 } from '../api';
 import { getErrorMessage, createEmptyDeckState } from '../utils';
 
+export interface TerminalApi {
+  createTerminal: (deckId: string, title?: string, command?: string) => Promise<{ id: string; title: string }>;
+  deleteTerminal: (terminalId: string) => Promise<void>;
+  listTerminals: (deckId: string) => Promise<{ id: string; title: string }[]>;
+}
+
 interface UseDecksProps {
   setStatusMessage: (message: string) => void;
   initializeDeckStates: (deckIds: string[]) => void;
@@ -20,7 +26,11 @@ interface UseDecksProps {
   initialDeckIds?: string[];
   /** Remote deck IDs that should be considered valid (not filtered out by validation) */
   remoteDeckIds?: string[];
+  /** Returns the terminal API for a given deck ID. Return undefined to use default (local) API. */
+  getTerminalApi?: (deckId: string) => TerminalApi | undefined;
 }
+
+const defaultTerminalApi: TerminalApi = { createTerminal: apiCreateTerminal, deleteTerminal: apiDeleteTerminal, listTerminals };
 
 export const useDecks = ({
   setStatusMessage,
@@ -29,8 +39,15 @@ export const useDecks = ({
   deckStates,
   setDeckStates,
   initialDeckIds,
-  remoteDeckIds
+  remoteDeckIds,
+  getTerminalApi
 }: UseDecksProps) => {
+  const getTerminalApiRef = useRef(getTerminalApi);
+  getTerminalApiRef.current = getTerminalApi;
+  const resolveTerminalApi = useCallback(
+    (deckId: string) => getTerminalApiRef.current?.(deckId) ?? defaultTerminalApi,
+    []
+  );
   const [decks, setDecks] = useState<Deck[]>([]);
   const [activeDeckIds, setActiveDeckIds] = useState<string[]>(initialDeckIds ?? []);
 
@@ -81,7 +98,8 @@ export const useDecks = ({
     activeDeckIds.forEach((deckId) => {
       const current = deckStates[deckId];
       if (current?.terminalsLoaded) return;
-      listTerminals(deckId)
+      const api = resolveTerminalApi(deckId);
+      api.listTerminals(deckId)
         .then((sessions) => {
           updateDeckState(deckId, (state) => ({
             ...state,
@@ -127,7 +145,8 @@ export const useDecks = ({
       try {
         const index = terminalsCount + 1;
         const title = customTitle || `ターミナル ${index}`;
-        const session = await apiCreateTerminal(deckId, title, command);
+        const api = resolveTerminalApi(deckId);
+        const session = await api.createTerminal(deckId, title, command);
         updateDeckState(deckId, (state) => {
           const terminal = {
             id: session.id,
@@ -151,7 +170,8 @@ export const useDecks = ({
   const handleDeleteTerminal = useCallback(
     async (deckId: string, terminalId: string) => {
       try {
-        await apiDeleteTerminal(terminalId);
+        const api = resolveTerminalApi(deckId);
+        await api.deleteTerminal(terminalId);
         updateDeckState(deckId, (state) => ({
           ...state,
           terminals: state.terminals.filter((t) => t.id !== terminalId)
