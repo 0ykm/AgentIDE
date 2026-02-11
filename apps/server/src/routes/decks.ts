@@ -15,6 +15,11 @@ export function createDeckRouter(
   const insertDeck = db.prepare(
     'INSERT INTO decks (id, name, root, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)'
   );
+  const updateDeckStmt = db.prepare(
+    'UPDATE decks SET name = ?, root = ?, workspace_id = ? WHERE id = ?'
+  );
+  const deleteDeckStmt = db.prepare('DELETE FROM decks WHERE id = ?');
+  const deleteTerminalsForDeck = db.prepare('DELETE FROM terminals WHERE deck_id = ?');
 
   function createDeck(name: string | undefined, workspaceId: string): Deck {
     const workspace = requireWorkspace(workspaces, workspaceId);
@@ -49,6 +54,51 @@ export function createDeckRouter(
       }
       const deck = createDeck(body?.name, workspaceId);
       return c.json(deck, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  router.patch('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const existing = decks.get(id);
+      if (!existing) {
+        throw createHttpError('Deck not found', 404);
+      }
+
+      const body = await readJson<{ name?: string; workspaceId?: string }>(c);
+      const name = body?.name?.trim() || existing.name;
+      const workspaceId = body?.workspaceId || existing.workspaceId;
+      let root = existing.root;
+
+      if (workspaceId !== existing.workspaceId) {
+        const workspace = requireWorkspace(workspaces, workspaceId);
+        root = workspace.path;
+      }
+
+      const updated: Deck = { ...existing, name, root, workspaceId };
+      updateDeckStmt.run(name, root, workspaceId, id);
+      decks.set(id, updated);
+
+      return c.json(updated);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  router.delete('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      if (!decks.has(id)) {
+        throw createHttpError('Deck not found', 404);
+      }
+
+      deleteTerminalsForDeck.run(id);
+      deleteDeckStmt.run(id);
+      decks.delete(id);
+
+      return c.body(null, 204);
     } catch (error) {
       return handleError(c, error);
     }

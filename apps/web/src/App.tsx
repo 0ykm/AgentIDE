@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DeckModal } from './components/DeckModal';
+import { DeckEditModal } from './components/DeckEditModal';
 import { DiffViewer } from './components/DiffViewer';
 import { EditorPane } from './components/EditorPane';
 import { FileTree } from './components/FileTree';
@@ -22,7 +23,7 @@ import { useDecks } from './hooks/useDecks';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
 import { useAgents } from './hooks/useAgents';
-import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace } from './types';
+import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace, Deck } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
   MESSAGE_WORKSPACE_REQUIRED,
@@ -51,6 +52,9 @@ export default function App() {
   const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>('files');
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [deletingWorkspace, setDeletingWorkspace] = useState<Workspace | null>(null);
+  const [deckContextMenu, setDeckContextMenu] = useState<{ deck: Deck; x: number; y: number } | null>(null);
+  const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
+  const [deletingDeck, setDeletingDeck] = useState<Deck | null>(null);
 
   const { workspaceStates, setWorkspaceStates, updateWorkspaceState, initializeWorkspaceStates } =
     useWorkspaceState();
@@ -65,7 +69,7 @@ export default function App() {
       setWorkspaceStates
     });
 
-  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
+  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleUpdateDeck, handleDeleteDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
     useDecks({
       setStatusMessage,
       initializeDeckStates,
@@ -129,12 +133,6 @@ export default function App() {
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
     [workspaces]
   );
-  const deckListItems = decks.map((deck) => ({
-    id: deck.id,
-    name: deck.name,
-    path: workspaceById.get(deck.workspaceId)?.path || deck.root
-  }));
-
   useEffect(() => {
     let alive = true;
     getConfig()
@@ -321,6 +319,46 @@ export default function App() {
       setDeletingWorkspace(null);
     }
   }, [deletingWorkspace, handleDeleteWorkspace, removeDecksForWorkspace]);
+
+  const handleDeckTabContextMenu = useCallback(
+    (e: React.MouseEvent, deck: Deck) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDeckContextMenu({ deck, x: e.clientX, y: e.clientY });
+    },
+    []
+  );
+
+  const handleSubmitEditDeck = useCallback(
+    async (id: string, updates: { name?: string; workspaceId?: string }) => {
+      const updated = await handleUpdateDeck(id, updates);
+      if (updated) {
+        setEditingDeck(null);
+      }
+    },
+    [handleUpdateDeck]
+  );
+
+  const handleConfirmDeleteDeck = useCallback(async () => {
+    if (!deletingDeck) return;
+    const success = await handleDeleteDeck(deletingDeck.id);
+    if (success) {
+      setDeletingDeck(null);
+    }
+  }, [deletingDeck, handleDeleteDeck]);
+
+  // Close deck context menu on outside click
+  const deckContextMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!deckContextMenu) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (deckContextMenuRef.current && !deckContextMenuRef.current.contains(e.target as Node)) {
+        setDeckContextMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [deckContextMenu]);
 
   const handleNewTerminalForDeck = useCallback((deckId: string) => {
     const deckState = deckStates[deckId] || defaultDeckState;
@@ -530,7 +568,8 @@ export default function App() {
                 type="button"
                 className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''}`}
                 onClick={(e) => handleToggleDeck(deck.id, e.shiftKey)}
-                title={`${workspaceById.get(deck.workspaceId)?.path || deck.root}\nShift+クリックで分割表示`}
+                onContextMenu={(e) => handleDeckTabContextMenu(e, deck)}
+                title={`${workspaceById.get(deck.workspaceId)?.path || deck.root}\nShift+クリックで分割表示\n右クリックで編集・削除`}
               >
                 {deck.name}
               </button>
@@ -686,6 +725,49 @@ export default function App() {
         onConfirm={handleConfirmDeleteWorkspace}
         onCancel={() => setDeletingWorkspace(null)}
       />
+      <DeckEditModal
+        isOpen={editingDeck !== null}
+        deck={editingDeck}
+        workspaces={workspaces}
+        onSubmit={handleSubmitEditDeck}
+        onClose={() => setEditingDeck(null)}
+      />
+      <ConfirmDialog
+        isOpen={deletingDeck !== null}
+        title="デッキ削除"
+        message={`「${deletingDeck?.name ?? ''}」を削除しますか？関連するターミナルも削除されます。`}
+        confirmLabel="削除"
+        onConfirm={handleConfirmDeleteDeck}
+        onCancel={() => setDeletingDeck(null)}
+      />
+      {deckContextMenu && (
+        <div
+          ref={deckContextMenuRef}
+          className="context-menu"
+          style={{ top: deckContextMenu.y, left: deckContextMenu.x }}
+        >
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setEditingDeck(deckContextMenu.deck);
+              setDeckContextMenu(null);
+            }}
+          >
+            編集
+          </button>
+          <button
+            type="button"
+            className="context-menu-item delete"
+            onClick={() => {
+              setDeletingDeck(deckContextMenu.deck);
+              setDeckContextMenu(null);
+            }}
+          >
+            削除
+          </button>
+        </div>
+      )}
     </div>
   );
 }

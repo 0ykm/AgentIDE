@@ -113,6 +113,29 @@ export function createDeck(name: string, workspaceId: string): Promise<Deck> {
 }
 
 /**
+ * Updates a deck
+ */
+export function updateDeck(
+  id: string,
+  updates: { name?: string; workspaceId?: string }
+): Promise<Deck> {
+  return request<Deck>(`/api/decks/${id}`, {
+    method: HTTP_METHOD_PATCH,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify(updates)
+  });
+}
+
+/**
+ * Deletes a deck
+ */
+export function deleteDeck(id: string): Promise<void> {
+  return request<void>(`/api/decks/${id}`, {
+    method: HTTP_METHOD_DELETE
+  });
+}
+
+/**
  * Lists files in a workspace directory
  */
 export function listFiles(

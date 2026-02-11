@@ -3,6 +3,8 @@ import type { Deck } from '../types';
 import {
   listDecks,
   createDeck as apiCreateDeck,
+  updateDeck as apiUpdateDeck,
+  deleteDeck as apiDeleteDeck,
   createTerminal as apiCreateTerminal,
   deleteTerminal as apiDeleteTerminal,
   listTerminals
@@ -157,6 +159,44 @@ export const useDecks = ({
     [updateDeckState, setStatusMessage]
   );
 
+  const handleUpdateDeck = useCallback(
+    async (id: string, updates: { name?: string; workspaceId?: string }) => {
+      try {
+        const updated = await apiUpdateDeck(id, updates);
+        setDecks((prev) => prev.map((d) => (d.id === id ? updated : d)));
+        return updated;
+      } catch (error: unknown) {
+        setStatusMessage(
+          `デッキを更新できませんでした: ${getErrorMessage(error)}`
+        );
+        return null;
+      }
+    },
+    [setStatusMessage]
+  );
+
+  const handleDeleteDeck = useCallback(
+    async (id: string) => {
+      try {
+        await apiDeleteDeck(id);
+        setDecks((prev) => prev.filter((d) => d.id !== id));
+        setActiveDeckIds((prev) => prev.filter((deckId) => deckId !== id));
+        setDeckStates((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        return true;
+      } catch (error: unknown) {
+        setStatusMessage(
+          `デッキを削除できませんでした: ${getErrorMessage(error)}`
+        );
+        return false;
+      }
+    },
+    [setStatusMessage, setDeckStates]
+  );
+
   const removeDecksForWorkspace = useCallback(
     (workspaceId: string) => {
       const deckIdsToRemove = new Set(
@@ -181,6 +221,8 @@ export const useDecks = ({
     activeDeckIds,
     setActiveDeckIds,
     handleCreateDeck,
+    handleUpdateDeck,
+    handleDeleteDeck,
     handleCreateTerminal,
     handleDeleteTerminal,
     removeDecksForWorkspace
