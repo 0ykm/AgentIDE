@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <rect width="256" height="256" rx="48" fill="#1a1a2e"/>
+  <rect x="8" y="8" width="240" height="240" rx="40" fill="#16213e" stroke="#0f3460" stroke-width="2"/>
+  <!-- Terminal bracket left -->
+  <path d="M56 88L88 128L56 168" stroke="#e94560" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Terminal bracket right -->
+  <path d="M200 88L168 128L200 168" stroke="#e94560" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Agent "A" center -->
+  <path d="M108 168L128 88L148 168" stroke="#53d8fb" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M114 148H142" stroke="#53d8fb" stroke-width="10" stroke-linecap="round"/>
+  <!-- Agent dot (AI indicator) -->
+  <circle cx="128" cy="68" r="6" fill="#53d8fb"/>
+  <!-- Circuit lines -->
+  <line x1="128" y1="74" x2="128" y2="88" stroke="#53d8fb" stroke-width="3" stroke-linecap="round"/>
+  <line x1="56" y1="200" x2="88" y2="200" stroke="#0f3460" stroke-width="4" stroke-linecap="round"/>
+  <line x1="168" y1="200" x2="200" y2="200" stroke="#0f3460" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="100" cy="200" r="4" fill="#0f3460"/>
+  <circle cx="156" cy="200" r="4" fill="#0f3460"/>
+</svg>
