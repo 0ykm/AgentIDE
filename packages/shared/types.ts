@@ -19,6 +19,14 @@ export interface Deck {
   createdAt: string;
 }
 
+// DeckGroup represents two decks displayed side-by-side
+export interface DeckGroup {
+  id: string;
+  name: string;
+  deckIds: [string, string];
+  createdAt: string;
+}
+
 // File system entry (file or directory)
 export interface FileSystemEntry {
   name: string;

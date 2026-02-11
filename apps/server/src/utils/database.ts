@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import type { Workspace, Deck, AgentSessionData } from '../types.js';
+import type { Workspace, Deck, DeckGroup, AgentSessionData } from '../types.js';
 import { getWorkspaceKey } from './path.js';
 
 export type PersistedTerminal = {
@@ -66,6 +66,15 @@ export function initializeDatabase(db: DatabaseSync): void {
       title TEXT NOT NULL,
       command TEXT,
       buffer TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS deck_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      deck_ids TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
   `);
@@ -141,6 +150,32 @@ export function loadPersistedState(
     };
     decks.set(deck.id, deck);
   });
+}
+
+// Deck group persistence functions
+export function loadDeckGroups(db: DatabaseSync, decks: Map<string, Deck>): Map<string, DeckGroup> {
+  const groups = new Map<string, DeckGroup>();
+  const rows = db
+    .prepare('SELECT id, name, deck_ids, created_at FROM deck_groups ORDER BY created_at ASC')
+    .all();
+
+  rows.forEach((row) => {
+    const id = String(row.id);
+    const deckIds: string[] = JSON.parse(String(row.deck_ids));
+    // Both decks must exist (2-fixed, remove group if either is missing)
+    if (deckIds.length !== 2 || !decks.has(deckIds[0]) || !decks.has(deckIds[1])) {
+      db.prepare('DELETE FROM deck_groups WHERE id = ?').run(id);
+      return;
+    }
+    groups.set(id, {
+      id,
+      name: String(row.name),
+      deckIds: deckIds as [string, string],
+      createdAt: String(row.created_at)
+    });
+  });
+
+  return groups;
 }
 
 // Terminal persistence functions

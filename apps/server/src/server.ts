@@ -7,7 +7,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { bodyLimit } from 'hono/body-limit';
 import { DatabaseSync } from 'node:sqlite';
-import type { Workspace, Deck, TerminalSession } from './types.js';
+import type { Workspace, Deck, DeckGroup, TerminalSession } from './types.js';
 import {
   PORT,
   HOST,
@@ -25,9 +25,10 @@ import {
 import { securityHeaders } from './middleware/security.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { basicAuthMiddleware, generateWsToken, isBasicAuthEnabled } from './middleware/auth.js';
-import { checkDatabaseIntegrity, handleDatabaseCorruption, initializeDatabase, loadPersistedState, loadPersistedTerminals, saveAllTerminalBuffers } from './utils/database.js';
+import { checkDatabaseIntegrity, handleDatabaseCorruption, initializeDatabase, loadPersistedState, loadDeckGroups, loadPersistedTerminals, saveAllTerminalBuffers } from './utils/database.js';
 import { createWorkspaceRouter, getConfigHandler } from './routes/workspaces.js';
 import { createDeckRouter } from './routes/decks.js';
+import { createDeckGroupRouter } from './routes/deckGroups.js';
 import { createFileRouter } from './routes/files.js';
 import { createTerminalRouter } from './routes/terminals.js';
 import { createGitRouter } from './routes/git.js';
@@ -75,6 +76,7 @@ export function createServer() {
 
   // Load persisted state
   loadPersistedState(db, workspaces, workspacePathIndex, decks);
+  const deckGroups = loadDeckGroups(db, decks);
 
   // Create Hono app
   const app = new Hono();
@@ -109,7 +111,8 @@ export function createServer() {
   // Mount routers
   app.route('/api/settings', createSettingsRouter());
   app.route('/api/workspaces', createWorkspaceRouter(db, workspaces, workspacePathIndex, decks));
-  app.route('/api/decks', createDeckRouter(db, workspaces, decks));
+  app.route('/api/decks', createDeckRouter(db, workspaces, decks, deckGroups));
+  app.route('/api/deck-groups', createDeckGroupRouter(db, decks, deckGroups));
   const { router: terminalRouter, restoreTerminals } = createTerminalRouter(db, decks, terminals);
   app.route('/api/terminals', terminalRouter);
   const { router: agentRouter, abortAllAgents } = createAgentRouter(db, workspaces);

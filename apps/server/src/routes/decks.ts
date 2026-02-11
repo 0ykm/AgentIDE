@@ -1,14 +1,15 @@
 import crypto from 'node:crypto';
 import { Hono } from 'hono';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Workspace, Deck } from '../types.js';
+import type { Workspace, Deck, DeckGroup } from '../types.js';
 import { createHttpError, handleError, readJson } from '../utils/error.js';
 import { requireWorkspace } from './workspaces.js';
 
 export function createDeckRouter(
   db: DatabaseSync,
   workspaces: Map<string, Workspace>,
-  decks: Map<string, Deck>
+  decks: Map<string, Deck>,
+  deckGroups: Map<string, DeckGroup>
 ) {
   const router = new Hono();
 
@@ -20,6 +21,7 @@ export function createDeckRouter(
   );
   const deleteDeckStmt = db.prepare('DELETE FROM decks WHERE id = ?');
   const deleteTerminalsForDeck = db.prepare('DELETE FROM terminals WHERE deck_id = ?');
+  const deleteGroupStmt = db.prepare('DELETE FROM deck_groups WHERE id = ?');
 
   function createDeck(name: string | undefined, workspaceId: string): Deck {
     const workspace = requireWorkspace(workspaces, workspaceId);
@@ -97,6 +99,14 @@ export function createDeckRouter(
       deleteTerminalsForDeck.run(id);
       deleteDeckStmt.run(id);
       decks.delete(id);
+
+      // Clean up deck groups containing this deck
+      for (const [groupId, group] of deckGroups) {
+        if (group.deckIds.includes(id)) {
+          deleteGroupStmt.run(groupId);
+          deckGroups.delete(groupId);
+        }
+      }
 
       return c.body(null, 204);
     } catch (error) {
