@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Hono } from 'hono';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Workspace, Deck, DeckGroup } from '../types.js';
+import type { Workspace, Deck, DeckGroup, TerminalLayout } from '../types.js';
 import { createHttpError, handleError, readJson } from '../utils/error.js';
 import { requireWorkspace } from './workspaces.js';
 
@@ -14,10 +14,10 @@ export function createDeckRouter(
   const router = new Hono();
 
   const insertDeck = db.prepare(
-    'INSERT INTO decks (id, name, root, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO decks (id, name, root, workspace_id, terminal_layout, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const updateDeckStmt = db.prepare(
-    'UPDATE decks SET name = ?, root = ?, workspace_id = ? WHERE id = ?'
+    'UPDATE decks SET name = ?, root = ?, workspace_id = ?, terminal_layout = ? WHERE id = ?'
   );
   const deleteDeckStmt = db.prepare('DELETE FROM decks WHERE id = ?');
   const deleteTerminalsForDeck = db.prepare('DELETE FROM terminals WHERE deck_id = ?');
@@ -30,6 +30,7 @@ export function createDeckRouter(
       name: name || `Deck ${decks.size + 1}`,
       root: workspace.path,
       workspaceId,
+      terminalLayout: 'horizontal',
       createdAt: new Date().toISOString()
     };
     decks.set(deck.id, deck);
@@ -38,6 +39,7 @@ export function createDeckRouter(
       deck.name,
       deck.root,
       deck.workspaceId,
+      deck.terminalLayout,
       deck.createdAt
     );
     return deck;
@@ -69,9 +71,12 @@ export function createDeckRouter(
         throw createHttpError('Deck not found', 404);
       }
 
-      const body = await readJson<{ name?: string; workspaceId?: string }>(c);
+      const body = await readJson<{ name?: string; workspaceId?: string; terminalLayout?: TerminalLayout }>(c);
       const name = body?.name?.trim() || existing.name;
       const workspaceId = body?.workspaceId || existing.workspaceId;
+      const terminalLayout: TerminalLayout = body?.terminalLayout === 'vertical' ? 'vertical'
+        : body?.terminalLayout === 'horizontal' ? 'horizontal'
+        : existing.terminalLayout;
       let root = existing.root;
 
       if (workspaceId !== existing.workspaceId) {
@@ -79,8 +84,8 @@ export function createDeckRouter(
         root = workspace.path;
       }
 
-      const updated: Deck = { ...existing, name, root, workspaceId };
-      updateDeckStmt.run(name, root, workspaceId, id);
+      const updated: Deck = { ...existing, name, root, workspaceId, terminalLayout };
+      updateDeckStmt.run(name, root, workspaceId, terminalLayout, id);
       decks.set(id, updated);
 
       return c.json(updated);

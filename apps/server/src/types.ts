@@ -1,5 +1,5 @@
 // Re-export shared types
-export type { Workspace, Deck, DeckGroup } from '@deck-ide/shared/types';
+export type { Workspace, Deck, DeckGroup, TerminalLayout } from '@deck-ide/shared/types';
 
 export type TerminalSession = {
   id: string;

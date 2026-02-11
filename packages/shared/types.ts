@@ -2,6 +2,8 @@
 
 export type FileEntryType = 'file' | 'dir';
 
+export type TerminalLayout = 'horizontal' | 'vertical';
+
 // Workspace represents a project root directory
 export interface Workspace {
   id: string;
@@ -16,6 +18,7 @@ export interface Deck {
   name: string;
   root: string;
   workspaceId: string;
+  terminalLayout: TerminalLayout;
   createdAt: string;
 }
 

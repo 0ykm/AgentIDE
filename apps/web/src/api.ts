@@ -1,4 +1,4 @@
-import type { Deck, DeckGroup, FileSystemEntry, Workspace, GitStatus, GitDiff, GitRepoInfo, MultiRepoGitStatus, AgentSession, CreateAgentRequest, AgentMessage, AgentStatus } from './types';
+import type { Deck, DeckGroup, FileSystemEntry, Workspace, GitStatus, GitDiff, GitRepoInfo, MultiRepoGitStatus, AgentSession, CreateAgentRequest, AgentMessage, AgentStatus, TerminalLayout } from './types';
 import { API_BASE } from './constants';
 
 const HTTP_STATUS_NO_CONTENT = 204;
@@ -117,7 +117,7 @@ export function createDeck(name: string, workspaceId: string): Promise<Deck> {
  */
 export function updateDeck(
   id: string,
-  updates: { name?: string; workspaceId?: string }
+  updates: { name?: string; workspaceId?: string; terminalLayout?: TerminalLayout }
 ): Promise<Deck> {
   return request<Deck>(`/api/decks/${id}`, {
     method: HTTP_METHOD_PATCH,

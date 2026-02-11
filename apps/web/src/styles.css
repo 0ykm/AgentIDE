@@ -1665,6 +1665,17 @@ textarea {
   border-color: #00a86b;
 }
 
+.layout-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+}
+
+.layout-toggle-btn svg {
+  display: block;
+}
+
 .deck-split-divider {
   width: 1px;
   height: 16px;

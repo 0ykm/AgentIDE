@@ -102,6 +102,13 @@ export function initializeDatabase(db: DatabaseSync): void {
     // Column already exists
   }
 
+  // Migration: add terminal_layout column to decks (existing databases)
+  try {
+    db.exec("ALTER TABLE decks ADD COLUMN terminal_layout TEXT NOT NULL DEFAULT 'horizontal'");
+  } catch {
+    // Column already exists
+  }
+
   // Create indexes for better query performance
   db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_workspace_id ON decks(workspace_id);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_terminals_deck_id ON terminals(deck_id);`);
@@ -135,17 +142,19 @@ export function loadPersistedState(
 
   const deckRows = db
     .prepare(
-      'SELECT id, name, root, workspace_id, created_at FROM decks ORDER BY created_at ASC'
+      'SELECT id, name, root, workspace_id, terminal_layout, created_at FROM decks ORDER BY created_at ASC'
     )
     .all();
   deckRows.forEach((row) => {
     const workspaceId = String(row.workspace_id);
     if (!workspaces.has(workspaceId)) return;
+    const terminalLayout = String(row.terminal_layout || 'horizontal');
     const deck: Deck = {
       id: String(row.id),
       name: String(row.name),
       root: String(row.root),
       workspaceId,
+      terminalLayout: terminalLayout === 'vertical' ? 'vertical' : 'horizontal',
       createdAt: String(row.created_at)
     };
     decks.set(deck.id, deck);

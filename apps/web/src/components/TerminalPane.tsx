@@ -1,17 +1,25 @@
-import type { TerminalSession } from '../types';
+import type { TerminalSession, TerminalLayout } from '../types';
 import { TerminalTile } from './TerminalTile';
 
 interface TerminalPaneProps {
   terminals: TerminalSession[];
   wsBase: string;
+  layout: TerminalLayout;
   onDeleteTerminal: (terminalId: string) => void;
 }
 
 // ターミナル数に基づいて最適なグリッドを自動計算
-function getOptimalGrid(count: number) {
+function getOptimalGrid(count: number, layout: TerminalLayout) {
   if (count <= 1) return { cols: 1, rows: 1 };
 
-  // 正方形に近い形を目指す
+  // ターミナル2個のときはレイアウト設定に従う
+  if (count === 2) {
+    return layout === 'vertical'
+      ? { cols: 1, rows: 2 }
+      : { cols: 2, rows: 1 };
+  }
+
+  // 3個以上は正方形に近い形を目指す
   const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
 
@@ -21,9 +29,10 @@ function getOptimalGrid(count: number) {
 export function TerminalPane({
   terminals,
   wsBase,
+  layout,
   onDeleteTerminal,
 }: TerminalPaneProps) {
-  const { cols, rows } = getOptimalGrid(terminals.length);
+  const { cols, rows } = getOptimalGrid(terminals.length, layout);
 
   return (
     <section className="terminal-pane">

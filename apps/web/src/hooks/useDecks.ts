@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Deck } from '../types';
+import type { Deck, TerminalLayout } from '../types';
 import {
   listDecks,
   createDeck as apiCreateDeck,
@@ -160,7 +160,7 @@ export const useDecks = ({
   );
 
   const handleUpdateDeck = useCallback(
-    async (id: string, updates: { name?: string; workspaceId?: string }) => {
+    async (id: string, updates: { name?: string; workspaceId?: string; terminalLayout?: TerminalLayout }) => {
       try {
         const updated = await apiUpdateDeck(id, updates);
         setDecks((prev) => prev.map((d) => (d.id === id ? updated : d)));

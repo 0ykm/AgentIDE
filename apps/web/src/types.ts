@@ -1,6 +1,7 @@
 // Re-export shared types from @deck-ide/shared
 export type {
   FileEntryType,
+  TerminalLayout,
   Workspace,
   Deck,
   DeckGroup,
