@@ -104,12 +104,22 @@ export function useNodes(): UseNodesReturn {
 
     try {
       const info = await client.getNodeInfo();
+
+      // Verify auth status after successful health check
+      let authStatus: 'ok' | 'unauthorized' | 'none' = 'none';
+      try {
+        authStatus = await client.verifyAuth();
+      } catch {
+        // Auth check failed (non-401 error) — leave as 'none'
+      }
+
       return {
         ...node,
         status: 'online' as const,
         lastSeen: new Date().toISOString(),
         version: info.version,
-        error: undefined
+        error: undefined,
+        authStatus
       };
     } catch (err) {
       return {

@@ -73,6 +73,31 @@ export class NodeApiClient {
     return this.request<{ token: string; authEnabled: boolean }>('/api/ws-token');
   }
 
+  /** Verify authentication status against the remote node */
+  async verifyAuth(): Promise<'ok' | 'unauthorized' | 'none'> {
+    const headers: Record<string, string> = {};
+    if (this.credentials) {
+      const encoded = btoa(`${this.credentials.user}:${this.credentials.password}`);
+      headers['Authorization'] = `Basic ${encoded}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/ws-token`, {
+      headers,
+      credentials: 'include'
+    });
+
+    if (response.status === 401) {
+      return 'unauthorized';
+    }
+
+    if (!response.ok) {
+      throw new Error(`Auth check failed (${response.status})`);
+    }
+
+    const data = await response.json() as { authEnabled: boolean };
+    return data.authEnabled ? 'ok' : 'none';
+  }
+
   // ===== Workspace API =====
 
   listWorkspaces(): Promise<Workspace[]> {

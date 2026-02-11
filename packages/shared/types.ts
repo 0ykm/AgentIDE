@@ -204,6 +204,7 @@ export interface RemoteNodeWithStatus extends RemoteNode {
   lastSeen: string | null;
   version?: string;
   error?: string;
+  authStatus?: 'ok' | 'unauthorized' | 'none';
 }
 
 export interface NodeInfo {

@@ -2956,6 +2956,17 @@ input:focus-visible {
   background: rgba(241, 76, 76, 0.15);
 }
 
+.node-status-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.node-auth-error {
+  color: #f14c4c;
+  background: rgba(241, 76, 76, 0.15);
+}
+
 .node-card-body {
   display: flex;
   gap: 12px;

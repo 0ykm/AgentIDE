@@ -93,9 +93,16 @@ export function NodeManagement({
             <div key={node.id} className={`node-card node-card-${node.status}`}>
               <div className="node-card-header">
                 <span className="node-name">{node.name}</span>
-                <span className={`node-status node-status-${node.status}`}>
-                  {STATUS_LABELS[node.status] || node.status}
-                </span>
+                <div className="node-status-badges">
+                  <span className={`node-status node-status-${node.status}`}>
+                    {STATUS_LABELS[node.status] || node.status}
+                  </span>
+                  {node.authStatus === 'unauthorized' && (
+                    <span className="node-status node-auth-error">
+                      認証エラー
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="node-card-body">
                 <span className="node-detail">{node.host}:{node.port}</span>
