@@ -5,6 +5,7 @@
 
 const { autoUpdater } = require('electron-updater');
 const { app } = require('electron');
+const { isPortable } = require('./config-manager.cjs');
 
 class AutoUpdaterManager {
   constructor() {
@@ -118,6 +119,10 @@ class AutoUpdaterManager {
   checkForUpdates() {
     if (!app.isPackaged) {
       console.log('[AutoUpdater] Skipping update check in development mode');
+      return;
+    }
+    if (isPortable()) {
+      console.log('[AutoUpdater] Skipping update check in portable mode');
       return;
     }
     autoUpdater.checkForUpdates();

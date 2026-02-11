@@ -41,18 +41,44 @@ const getNodePath = () => {
 };
 
 /**
+ * ポータブルモードかどうかを判定
+ * パッケージ済みかつ exe 隣に .portable マーカーファイルが存在する場合にtrue
+ */
+const isPortable = () => {
+  if (!app.isPackaged) return false;
+  const markerPath = path.join(path.dirname(process.execPath), '.portable');
+  return fs.existsSync(markerPath);
+};
+
+/**
+ * データ保存先のベースパスを取得
+ * ポータブル時: exe隣の data/ フォルダ
+ * 通常時: app.getPath('userData')
+ */
+const getDataBasePath = () => {
+  if (isPortable()) {
+    return path.join(path.dirname(process.execPath), 'data');
+  }
+  return app.getPath('userData');
+};
+
+/**
  * データベースファイルのパスを取得
+ * ポータブル時: data/agent-ide.db (getDataBasePath直下)
+ * 通常時: userData/data/agent-ide.db (既存構造を維持)
  */
 const getDbPath = () => {
-  const base = app.getPath('userData');
-  return path.join(base, 'data', 'deck-ide.db');
+  if (isPortable()) {
+    return path.join(getDataBasePath(), 'agent-ide.db');
+  }
+  return path.join(getDataBasePath(), 'data', 'agent-ide.db');
 };
 
 /**
  * 設定ファイルのパスを取得
  */
 const getConfigPath = () => {
-  const base = app.getPath('userData');
+  const base = getDataBasePath();
   return path.join(base, 'config.json');
 };
 
@@ -240,6 +266,8 @@ module.exports = {
   resolveServerEntry,
   resolveNodeBinary,
   getNodePath,
+  isPortable,
+  getDataBasePath,
   getDbPath,
   getConfigPath,
   getDefaultConfig,

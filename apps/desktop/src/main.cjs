@@ -14,7 +14,8 @@ const {
   setAutoStartEnabled,
   loadConfig,
   saveConfig,
-  killProcessOnPort
+  killProcessOnPort,
+  getDataBasePath
 } = require('./config-manager.cjs');
 
 /**
@@ -39,7 +40,7 @@ if (!gotTheLock) {
  */
 app.whenReady().then(() => {
   // ログファイルのパスを設定
-  const logDir = app.getPath('userData');
+  const logDir = getDataBasePath();
   const logFilePath = path.join(logDir, 'server.log');
   logManager.setLogFilePath(logFilePath);
 

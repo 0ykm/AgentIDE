@@ -50,7 +50,7 @@ export const hasStatic = fsSync.existsSync(distDir);
 const packagedDataDir = path.resolve(__dirname, '..', 'data');
 const devDataDir = path.resolve(__dirname, '..', '..', 'data');
 export const dataDir = fsSync.existsSync(path.dirname(packagedDataDir)) && !fsSync.existsSync(devDataDir) ? packagedDataDir : devDataDir;
-export const dbPath = process.env.DB_PATH || path.join(dataDir, 'deck-ide.db');
+export const dbPath = process.env.DB_PATH || path.join(dataDir, 'agent-ide.db');
 
 // Validate critical configuration
 if (NODE_ENV === 'production') {
