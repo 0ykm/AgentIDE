@@ -31,6 +31,9 @@
   - 以後の実装への引き継ぎ事項・メモ
 - コミット前に必ずチェックリストを更新する
 
+## デバッグ
+skill: playwright-debugを使用して実装後にデバッグを行うこと
+
 </development_rules>
 <document_management>
 

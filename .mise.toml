@@ -13,6 +13,7 @@
 
 [tools]
 node = "22"
+"npm:@playwright/cli" = "latest"
 
 [env]
 NODE_ENV = "development"

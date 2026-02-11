@@ -12,5 +12,5 @@ apps/desktop/dist/
 apps/server/data/
 .claude/settings.local.json
 docs/.agent/
-docs/plans/
 .mise.local.toml
+.playwright-cli/
