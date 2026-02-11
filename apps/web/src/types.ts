@@ -3,6 +3,7 @@ export type {
   FileEntryType,
   Workspace,
   Deck,
+  DeckGroup,
   FileSystemEntry,
   FileTreeNode,
   EditorFile,

@@ -1,4 +1,4 @@
-import type { Deck, FileSystemEntry, Workspace, GitStatus, GitDiff, GitRepoInfo, MultiRepoGitStatus, AgentSession, CreateAgentRequest, AgentMessage, AgentStatus } from './types';
+import type { Deck, DeckGroup, FileSystemEntry, Workspace, GitStatus, GitDiff, GitRepoInfo, MultiRepoGitStatus, AgentSession, CreateAgentRequest, AgentMessage, AgentStatus } from './types';
 import { API_BASE } from './constants';
 
 const HTTP_STATUS_NO_CONTENT = 204;
@@ -540,6 +540,49 @@ export function getGitLog(
   }
   const query = new URLSearchParams(params);
   return request(`/api/git/log?${query.toString()}`);
+}
+
+// ===== Deck Group API =====
+
+/**
+ * Fetches all deck groups
+ */
+export function listDeckGroups(): Promise<DeckGroup[]> {
+  return request<DeckGroup[]>('/api/deck-groups');
+}
+
+/**
+ * Creates a new deck group
+ */
+export function createDeckGroup(name: string, deckIds: [string, string]): Promise<DeckGroup> {
+  return request<DeckGroup>('/api/deck-groups', {
+    method: HTTP_METHOD_POST,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify({ name, deckIds })
+  });
+}
+
+/**
+ * Updates a deck group
+ */
+export function updateDeckGroup(
+  id: string,
+  updates: { name?: string; deckIds?: [string, string] }
+): Promise<DeckGroup> {
+  return request<DeckGroup>(`/api/deck-groups/${id}`, {
+    method: HTTP_METHOD_PATCH,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify(updates)
+  });
+}
+
+/**
+ * Deletes a deck group
+ */
+export function deleteDeckGroup(id: string): Promise<void> {
+  return request<void>(`/api/deck-groups/${id}`, {
+    method: HTTP_METHOD_DELETE
+  });
 }
 
 // ===== Agent API =====
