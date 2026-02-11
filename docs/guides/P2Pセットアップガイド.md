@@ -65,7 +65,7 @@ make dev
 DECK_IDE_PORT=8788 ./Deck\ IDE
 
 # 開発モード（サーバー単体）
-PORT=8788 DB_PATH=./data-node-b/deck-ide.db npm run dev:server
+PORT=8788 DB_PATH=./data-node-b/agent-ide.db npm run dev:server
 ```
 
 > `DB_PATH` を分けることで、同一PC上で複数のノードインスタンスを独立したデータベースで起動できる。
@@ -150,10 +150,10 @@ Node AのブラウザからNode B（192.168.1.20:8787）を登録し、リモー
 
 ```bash
 # ターミナル1: Node A
-PORT=8787 DB_PATH=./data-a/deck-ide.db npm run dev:server
+PORT=8787 DB_PATH=./data-a/agent-ide.db npm run dev:server
 
 # ターミナル2: Node B
-PORT=8788 DB_PATH=./data-b/deck-ide.db npm run dev:server
+PORT=8788 DB_PATH=./data-b/agent-ide.db npm run dev:server
 
 # ターミナル3: フロントエンド
 npm run dev:web
