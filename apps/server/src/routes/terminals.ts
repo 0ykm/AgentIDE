@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Deck, TerminalSession } from '../types.js';
 import { TERMINAL_BUFFER_LIMIT } from '../config.js';
 import { createHttpError, handleError, readJson } from '../utils/error.js';
-import { getDefaultShell } from '../utils/shell.js';
+import { getDefaultShell, isBashLikeShell } from '../utils/shell.js';
 import { saveTerminal, deleteTerminal as deleteTerminalFromDb, type PersistedTerminal } from '../utils/database.js';
 
 // Track terminal index per deck for unique naming
@@ -50,19 +50,14 @@ export function createTerminalRouter(
     if (command) {
       // Run custom command through shell
       const defaultShell = getDefaultShell();
-      if (process.platform === 'win32') {
-        // Windows: use powershell to run the command
-        shell = defaultShell; // powershell.exe or cmd.exe
-        if (defaultShell.toLowerCase().includes('powershell')) {
-          shellArgs = ['-NoExit', '-Command', command];
-        } else {
-          // cmd.exe
-          shellArgs = ['/K', command];
-        }
-      } else {
-        // Unix: use shell with -c
-        shell = defaultShell; // bash, zsh, etc.
+      shell = defaultShell;
+      if (isBashLikeShell(defaultShell)) {
         shellArgs = ['-c', command];
+      } else if (defaultShell.toLowerCase().includes('powershell')) {
+        shellArgs = ['-NoExit', '-Command', command];
+      } else {
+        // cmd.exe
+        shellArgs = ['/K', command];
       }
     } else {
       // Default shell with no arguments
