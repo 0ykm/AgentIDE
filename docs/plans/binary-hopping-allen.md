@@ -25,7 +25,7 @@
 - [x] Task 6: DeckModalにremoteWorkspaces連携
 - [x] Task 7: WorkspaceModalにノード選択追加（リモートWS作成）
 - [x] Task 8: WS編集・削除のリモート対応
-- [ ] Task 9: デバッグ・動作確認
+- [x] Task 9: デバッグ・動作確認
 
 ---
 

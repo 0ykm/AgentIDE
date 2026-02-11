@@ -26,7 +26,7 @@ export function useRemoteWorkspaces(
 
   const refreshRemoteWorkspaces = useCallback(async () => {
     if (onlineRemoteNodes.length === 0) {
-      setRemoteWorkspaces([]);
+      // Keep existing workspaces (they'll be shown as offline via offlineNodeIds)
       return;
     }
 
@@ -45,14 +45,20 @@ export function useRemoteWorkspaces(
         })
       );
 
-      const allWorkspaces: NodeWorkspace[] = [];
+      const freshWorkspaces: NodeWorkspace[] = [];
       for (const result of results) {
         if (result.status === 'fulfilled') {
-          allWorkspaces.push(...result.value);
+          freshWorkspaces.push(...result.value);
         }
       }
 
-      setRemoteWorkspaces(allWorkspaces);
+      const onlineNodeIds = new Set(onlineRemoteNodes.map(n => n.id));
+
+      setRemoteWorkspaces((prev) => {
+        // Keep workspaces for offline nodes, replace with fresh data for online nodes
+        const offlineWorkspaces = prev.filter(ws => !onlineNodeIds.has(ws.nodeId));
+        return [...offlineWorkspaces, ...freshWorkspaces];
+      });
     } finally {
       setLoading(false);
     }
