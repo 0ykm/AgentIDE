@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
-import type { RegisterNodeRequest, NodeInfo } from '@deck-ide/shared/types';
+import { useState, useEffect, type FormEvent } from 'react';
+import type { RegisterNodeRequest, NodeInfo, RemoteNodeWithStatus } from '@deck-ide/shared/types';
 
 interface NodeAddModalProps {
   isOpen: boolean;
+  editNode?: RemoteNodeWithStatus | null;
   onSubmit: (req: RegisterNodeRequest) => Promise<void>;
   onTestConnection: (host: string, port: number) => Promise<NodeInfo | null>;
   onClose: () => void;
@@ -10,16 +11,40 @@ interface NodeAddModalProps {
 
 export function NodeAddModal({
   isOpen,
+  editNode,
   onSubmit,
   onTestConnection,
   onClose
 }: NodeAddModalProps) {
+  const isEditMode = Boolean(editNode);
+
   const [host, setHost] = useState('');
   const [port, setPort] = useState('8787');
   const [name, setName] = useState('');
+  const [authUser, setAuthUser] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; info?: NodeInfo; error?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Populate form when editNode changes
+  useEffect(() => {
+    if (editNode) {
+      setHost(editNode.host);
+      setPort(String(editNode.port));
+      setName(editNode.name);
+      setAuthUser(editNode.authUser || '');
+      setAuthPassword('');
+      setTestResult(null);
+    } else {
+      setHost('');
+      setPort('8787');
+      setName('');
+      setAuthUser('');
+      setAuthPassword('');
+      setTestResult(null);
+    }
+  }, [editNode]);
 
   const handleTest = async () => {
     if (!host.trim()) return;
@@ -47,16 +72,28 @@ export function NodeAddModal({
     if (!host.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({
+      const req: RegisterNodeRequest = {
         name: name.trim() || `Node (${host}:${port})`,
         host: host.trim(),
         port: Number(port)
-      });
-      // Reset form
-      setHost('');
-      setPort('8787');
-      setName('');
-      setTestResult(null);
+      };
+      if (authUser.trim()) {
+        req.authUser = authUser.trim();
+      }
+      // Only include password if user entered one (empty = no change in edit mode)
+      if (authPassword) {
+        req.authPasswordEnc = authPassword;
+      }
+      await onSubmit(req);
+      if (!isEditMode) {
+        // Reset form only in add mode
+        setHost('');
+        setPort('8787');
+        setName('');
+        setAuthUser('');
+        setAuthPassword('');
+        setTestResult(null);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -67,7 +104,7 @@ export function NodeAddModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <form className="modal" onSubmit={handleSubmit}>
-        <div className="modal-title">ノード追加</div>
+        <div className="modal-title">{isEditMode ? 'ノード設定' : 'ノード追加'}</div>
         <label className="field">
           <span>ホスト名 / IPアドレス</span>
           <input
@@ -99,6 +136,26 @@ export function NodeAddModal({
             onChange={(e) => setName(e.target.value)}
           />
         </label>
+        <label className="field">
+          <span>認証ユーザー名 (任意)</span>
+          <input
+            type="text"
+            value={authUser}
+            placeholder="未設定の場合は認証なし"
+            onChange={(e) => setAuthUser(e.target.value)}
+            autoComplete="username"
+          />
+        </label>
+        <label className="field">
+          <span>認証パスワード (任意)</span>
+          <input
+            type="password"
+            value={authPassword}
+            placeholder={isEditMode ? '変更しない場合は空欄' : '未設定の場合は認証なし'}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </label>
 
         <div className="node-test-section">
           <button
@@ -127,7 +184,9 @@ export function NodeAddModal({
             className="primary-button"
             disabled={submitting || !host.trim()}
           >
-            {submitting ? '追加中...' : '追加'}
+            {submitting
+              ? (isEditMode ? '保存中...' : '追加中...')
+              : (isEditMode ? '保存' : '追加')}
           </button>
         </div>
       </form>

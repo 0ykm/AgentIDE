@@ -5,6 +5,17 @@ import { API_BASE } from '../constants';
 
 const NODE_HEALTH_CHECK_INTERVAL = 15000;
 
+/** Build credentials for NodeApiClient from authUser + password */
+function buildCredentials(
+  authUser: string | null | undefined,
+  authPassword: string | null | undefined
+): { user: string; password: string } | undefined {
+  if (authUser && authPassword) {
+    return { user: authUser, password: authPassword };
+  }
+  return undefined;
+}
+
 export interface UseNodesReturn {
   nodes: RemoteNodeWithStatus[];
   localNode: RemoteNodeWithStatus;
@@ -33,6 +44,8 @@ export function useNodes(): UseNodesReturn {
   const [nodes, setNodes] = useState<RemoteNodeWithStatus[]>([]);
   const [localNode, setLocalNode] = useState<RemoteNodeWithStatus>(createLocalNodeStatus(null));
   const clientsRef = useRef<Map<string, NodeApiClient>>(new Map());
+  /** Store authPasswordEnc per node id (not in RemoteNode type for safety) */
+  const passwordsRef = useRef<Map<string, string>>(new Map());
   const localClientRef = useRef<NodeApiClient>(
     new NodeApiClient(API_BASE || window.location.origin)
   );
@@ -67,7 +80,13 @@ export function useNodes(): UseNodesReturn {
         // Create clients for each remote node
         for (const node of remoteNodes.filter((n) => !n.isLocal)) {
           const url = `http://${node.host}:${node.port}`;
-          clientsRef.current.set(node.id, new NodeApiClient(url));
+          // API returns authPasswordEnc at runtime (PersistedNode) even though not in RemoteNode type
+          const authPasswordEnc = (node as unknown as { authPasswordEnc?: string }).authPasswordEnc;
+          if (authPasswordEnc) {
+            passwordsRef.current.set(node.id, authPasswordEnc);
+          }
+          const credentials = buildCredentials(node.authUser, authPasswordEnc);
+          clientsRef.current.set(node.id, new NodeApiClient(url, credentials));
         }
       } catch {
         // Node listing may not exist yet
@@ -158,7 +177,11 @@ export function useNodes(): UseNodesReturn {
   const addNode = useCallback(async (req: RegisterNodeRequest) => {
     const registered = await localClientRef.current.registerNode(req);
     const url = `http://${registered.host}:${registered.port}`;
-    const client = new NodeApiClient(url);
+    if (req.authPasswordEnc) {
+      passwordsRef.current.set(registered.id, req.authPasswordEnc);
+    }
+    const credentials = buildCredentials(req.authUser, req.authPasswordEnc);
+    const client = new NodeApiClient(url, credentials);
     clientsRef.current.set(registered.id, client);
 
     // Check health immediately
@@ -190,16 +213,30 @@ export function useNodes(): UseNodesReturn {
   const removeNode = useCallback(async (nodeId: string) => {
     await localClientRef.current.deleteNode(nodeId);
     clientsRef.current.delete(nodeId);
+    passwordsRef.current.delete(nodeId);
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
   }, []);
 
   const updateNodeFn = useCallback(async (nodeId: string, updates: Partial<RegisterNodeRequest>) => {
     const updated = await localClientRef.current.updateNode(nodeId, updates);
 
-    // Recreate client if host/port changed
-    if (updates.host || updates.port) {
+    // Track password changes
+    if (updates.authPasswordEnc !== undefined) {
+      if (updates.authPasswordEnc) {
+        passwordsRef.current.set(nodeId, updates.authPasswordEnc);
+      } else {
+        passwordsRef.current.delete(nodeId);
+      }
+    }
+
+    // Recreate client if host/port/auth changed
+    const authChanged = updates.authUser !== undefined || updates.authPasswordEnc !== undefined;
+    if (updates.host || updates.port || authChanged) {
       const url = `http://${updated.host}:${updated.port}`;
-      clientsRef.current.set(nodeId, new NodeApiClient(url));
+      const authUser = updated.authUser;
+      const authPassword = passwordsRef.current.get(nodeId);
+      const credentials = buildCredentials(authUser, authPassword);
+      clientsRef.current.set(nodeId, new NodeApiClient(url, credentials));
     }
 
     setNodes((prev) =>

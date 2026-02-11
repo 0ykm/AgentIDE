@@ -196,6 +196,7 @@ export interface RemoteNode {
   port: number;
   isLocal: boolean;
   createdAt: string;
+  authUser?: string | null;
 }
 
 export interface RemoteNodeWithStatus extends RemoteNode {
@@ -216,4 +217,6 @@ export interface RegisterNodeRequest {
   name: string;
   host: string;
   port: number;
+  authUser?: string;
+  authPasswordEnc?: string;
 }

@@ -7,6 +7,7 @@ interface NodeManagementProps {
   nodes: RemoteNodeWithStatus[];
   onAddNode: (req: RegisterNodeRequest) => Promise<void>;
   onRemoveNode: (nodeId: string) => Promise<void>;
+  onUpdateNode: (nodeId: string, updates: Partial<RegisterNodeRequest>) => Promise<void>;
   onTestConnection: (host: string, port: number) => Promise<NodeInfo | null>;
   onRefreshStatuses: () => Promise<void>;
 }
@@ -22,10 +23,12 @@ export function NodeManagement({
   nodes,
   onAddNode,
   onRemoveNode,
+  onUpdateNode,
   onTestConnection,
   onRefreshStatuses
 }: NodeManagementProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingNode, setEditingNode] = useState<RemoteNodeWithStatus | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const localNode = nodes.find(n => n.isLocal);
@@ -111,6 +114,13 @@ export function NodeManagement({
               <div className="node-card-actions">
                 <button
                   type="button"
+                  className="ghost-button"
+                  onClick={() => setEditingNode(node)}
+                >
+                  設定
+                </button>
+                <button
+                  type="button"
                   className="ghost-button ghost-button-danger"
                   onClick={() => handleRemove(node.id)}
                   disabled={removingId === node.id}
@@ -123,6 +133,7 @@ export function NodeManagement({
         )}
       </div>
 
+      {/* Add mode */}
       <NodeAddModal
         isOpen={isAddModalOpen}
         onSubmit={async (req) => {
@@ -131,6 +142,19 @@ export function NodeManagement({
         }}
         onTestConnection={onTestConnection}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* Edit mode */}
+      <NodeAddModal
+        isOpen={editingNode !== null}
+        editNode={editingNode}
+        onSubmit={async (req) => {
+          if (!editingNode) return;
+          await onUpdateNode(editingNode.id, req);
+          setEditingNode(null);
+        }}
+        onTestConnection={onTestConnection}
+        onClose={() => setEditingNode(null)}
       />
     </div>
   );

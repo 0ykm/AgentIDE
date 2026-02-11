@@ -96,7 +96,7 @@ export default function App() {
   const { sessions: agentSessions, handleCreateAgent, handleDeleteAgent } = useAgents({ setStatusMessage });
 
   // Remote nodes
-  const { nodes, localNode, onlineRemoteNodes, getNodeClient, addNode, removeNode, testConnection, refreshAllStatuses } = useNodes();
+  const { nodes, localNode, onlineRemoteNodes, getNodeClient, addNode, removeNode, updateNode, testConnection, refreshAllStatuses } = useNodes();
   const { remoteDecks, refreshRemoteDecks } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
 
   // Refresh remote decks when online nodes change
@@ -846,6 +846,7 @@ export default function App() {
             nodes={[localNode, ...nodes]}
             onAddNode={addNode}
             onRemoveNode={removeNode}
+            onUpdateNode={updateNode}
             onTestConnection={testConnection}
             onRefreshStatuses={refreshAllStatuses}
           />
