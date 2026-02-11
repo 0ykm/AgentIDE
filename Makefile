@@ -42,7 +42,7 @@ build-app: ## デスクトップアプリをビルド (Electron インストー�
 
 build-app-dir: ## デスクトップアプリをビルド (ポータブル版、コード署名スキップ)
 	mise run build
-	cd apps/desktop && node scripts/ensure-wincodesign-cache.cjs && node scripts/prepare.cjs && npx electron-builder --dir && node scripts/mark-portable.cjs
+	cd apps/desktop && node scripts/ensure-wincodesign-cache.cjs && node scripts/prepare.cjs && npx electron-builder --dir && node scripts/mark-portable.cjs && node scripts/zip-portable.cjs
 
 clean: ## ビルド成果物を削除
 	mise run clean
