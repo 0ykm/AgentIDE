@@ -95,4 +95,4 @@ run = "npm --workspace apps/server run serve"
 
 [tasks.clean]
 description = "ビルド成果物を削除"
-run = "node -e \"const fs=require('fs');['packages/shared/dist','apps/server/dist','apps/web/dist','apps/desktop/dist'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true});console.log('removed: '+d)}catch(e){}})\""
+run = "rm -rf packages/shared/dist apps/server/dist apps/web/dist apps/desktop/dist"

@@ -1,4 +1,4 @@
-.PHONY: help setup teardown dev build-server build-app clean serve
+.PHONY: help setup teardown dev kill-dev build-server build-app clean serve
 
 .DEFAULT_GOAL := help
 
@@ -20,10 +20,19 @@ setup: ## フルセットアップ (mise trust + install + npm install + shared 
 
 teardown: ## セットアップの完全クリーンアップ (node_modules + ビルド成果物を削除)
 	mise run clean
-	node -e "const fs=require('fs');['node_modules','apps/web/node_modules','apps/server/node_modules','apps/desktop/node_modules','packages/shared/node_modules'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true});console.log('removed: '+d)}catch(e){}})"
+	rm -rf node_modules apps/web/node_modules apps/server/node_modules apps/desktop/node_modules packages/shared/node_modules
 
 dev: ## 開発サーバー起動 (server + web 並列)
 	mise run dev
+
+kill-dev: ## 開発サーバーのプロセスを停止 (port 8787, 5173)
+ifeq ($(OS),Windows_NT)
+	-@pid=$$(netstat -ano | grep ':8787 ' | grep LISTENING | awk '{print $$5}'); [ -n "$$pid" ] && taskkill //F //PID $$pid 2>/dev/null && echo "Stopped server (port 8787)" || true
+	-@pid=$$(netstat -ano | grep ':5173 ' | grep LISTENING | awk '{print $$5}'); [ -n "$$pid" ] && taskkill //F //PID $$pid 2>/dev/null && echo "Stopped web (port 5173)" || true
+else
+	-@lsof -ti:8787 | xargs kill 2>/dev/null && echo "Stopped server (port 8787)" || true
+	-@lsof -ti:5173 | xargs kill 2>/dev/null && echo "Stopped web (port 5173)" || true
+endif
 
 build-server: ## Web + Server をビルド
 	mise run build
