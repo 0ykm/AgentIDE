@@ -12,6 +12,7 @@ export interface UseRemoteDecksReturn {
   remoteDecks: NodeDeck[];
   loading: boolean;
   createRemoteDeck: (nodeId: string, name: string, workspaceId: string) => Promise<Deck | null>;
+  updateRemoteDeck: (nodeId: string, deckId: string, updates: { name?: string; workspaceId?: string }) => Promise<Deck | null>;
   deleteRemoteDeck: (nodeId: string, deckId: string) => Promise<void>;
   createRemoteTerminal: (nodeId: string, deckId: string, title?: string, command?: string) => Promise<{ id: string; title: string } | null>;
   deleteRemoteTerminal: (nodeId: string, terminalId: string) => Promise<void>;
@@ -81,6 +82,23 @@ export function useRemoteDecks(
     [getNodeClient, onlineRemoteNodes]
   );
 
+  const updateRemoteDeck = useCallback(
+    async (nodeId: string, deckId: string, updates: { name?: string; workspaceId?: string }): Promise<Deck | null> => {
+      const client = getNodeClient(nodeId);
+      if (!client) return null;
+      try {
+        const updated = await client.updateDeck(deckId, updates);
+        setRemoteDecks((prev) =>
+          prev.map((d) => d.id === deckId && d.nodeId === nodeId ? { ...d, ...updated } : d)
+        );
+        return updated;
+      } catch {
+        return null;
+      }
+    },
+    [getNodeClient]
+  );
+
   const deleteRemoteDeck = useCallback(
     async (nodeId: string, deckId: string) => {
       const client = getNodeClient(nodeId);
@@ -120,6 +138,7 @@ export function useRemoteDecks(
     remoteDecks,
     loading,
     createRemoteDeck,
+    updateRemoteDeck,
     deleteRemoteDeck,
     createRemoteTerminal,
     deleteRemoteTerminal,

@@ -61,6 +61,9 @@ export default function App() {
   const [deckContextMenu, setDeckContextMenu] = useState<{ deck: Deck; x: number; y: number } | null>(null);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const [deletingDeck, setDeletingDeck] = useState<Deck | null>(null);
+  const [remoteDeckContextMenu, setRemoteDeckContextMenu] = useState<{ deck: NodeDeck; x: number; y: number } | null>(null);
+  const [editingRemoteDeck, setEditingRemoteDeck] = useState<NodeDeck | null>(null);
+  const [deletingRemoteDeck, setDeletingRemoteDeck] = useState<NodeDeck | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(initialUrlState.groupId ?? null);
   const [groupCreateInitialDeck, setGroupCreateInitialDeck] = useState<Deck | null>(null);
   const [editingDeckGroup, setEditingDeckGroup] = useState<DeckGroup | null>(null);
@@ -81,24 +84,9 @@ export default function App() {
       setWorkspaceStates
     });
 
-  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleUpdateDeck, handleDeleteDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
-    useDecks({
-      setStatusMessage,
-      initializeDeckStates,
-      updateDeckState,
-      deckStates,
-      setDeckStates,
-      initialDeckIds: initialUrlState.deckIds
-    });
-
-  const { deckGroups, handleCreateDeckGroup, handleUpdateDeckGroup, handleDeleteDeckGroup } =
-    useDeckGroups({ setStatusMessage, decks });
-
-  const { sessions: agentSessions, handleCreateAgent, handleDeleteAgent } = useAgents({ setStatusMessage });
-
-  // Remote nodes
+  // Remote nodes (must be before useDecks so remoteDeckIds are available for validation)
   const { nodes, localNode, onlineRemoteNodes, getNodeClient, addNode, removeNode, updateNode, testConnection, refreshAllStatuses } = useNodes();
-  const { remoteDecks, refreshRemoteDecks, createRemoteDeck } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
+  const { remoteDecks, refreshRemoteDecks, createRemoteDeck, updateRemoteDeck, deleteRemoteDeck } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
   const { remoteWorkspaces, refreshRemoteWorkspaces, createRemoteWorkspace, deleteRemoteWorkspace, updateRemoteWorkspace } =
     useRemoteWorkspaces(onlineRemoteNodes, getNodeClient);
 
@@ -109,6 +97,24 @@ export default function App() {
       refreshRemoteWorkspaces();
     }
   }, [onlineRemoteNodes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const remoteDeckIds = useMemo(() => remoteDecks.map(d => d.id), [remoteDecks]);
+
+  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleUpdateDeck, handleDeleteDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
+    useDecks({
+      setStatusMessage,
+      initializeDeckStates,
+      updateDeckState,
+      deckStates,
+      setDeckStates,
+      initialDeckIds: initialUrlState.deckIds,
+      remoteDeckIds
+    });
+
+  const { deckGroups, handleCreateDeckGroup, handleUpdateDeckGroup, handleDeleteDeckGroup } =
+    useDeckGroups({ setStatusMessage, decks });
+
+  const { sessions: agentSessions, handleCreateAgent, handleDeleteAgent } = useAgents({ setStatusMessage });
 
   const wsBase = getWsBase();
 
@@ -121,6 +127,19 @@ export default function App() {
     getNodeClient,
     localWsBase: wsBase
   });
+
+  // Sync editorWorkspaceId when active deck changes
+  useEffect(() => {
+    const wsId = activeDeckCtx.workspaceId;
+    if (wsId && wsId !== editorWorkspaceId) {
+      setEditorWorkspaceId(wsId);
+      setWorkspaceMode('editor');
+      setWorkspaceStates((prev) => {
+        if (prev[wsId]) return prev;
+        return { ...prev, [wsId]: createEmptyWorkspaceState() };
+      });
+    }
+  }, [activeDeckCtx.workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const defaultWorkspaceState = useMemo(() => createEmptyWorkspaceState(), []);
   const defaultDeckState = useMemo(() => createEmptyDeckState(), []);
@@ -318,16 +337,27 @@ export default function App() {
         setStatusMessage(MESSAGE_SELECT_WORKSPACE);
         return;
       }
+      // 名前が空の場合、全デッキを考慮してユニーク名を生成
+      let resolvedName = name;
+      if (!resolvedName) {
+        const allNames = new Set([
+          ...decks.map(d => d.name),
+          ...remoteDecks.map(d => d.name)
+        ]);
+        let n = allNames.size + 1;
+        while (allNames.has(`Deck ${n}`)) n++;
+        resolvedName = `Deck ${n}`;
+      }
       if (deckModalNodeId) {
-        const deck = await createRemoteDeck(deckModalNodeId, name, workspaceId);
+        const deck = await createRemoteDeck(deckModalNodeId, resolvedName, workspaceId);
         if (deck) await refreshRemoteDecks();
       } else {
-        await handleCreateDeck(name, workspaceId);
+        await handleCreateDeck(resolvedName, workspaceId);
       }
       setIsDeckModalOpen(false);
       setDeckModalNodeId('');
     },
-    [deckModalNodeId, createRemoteDeck, refreshRemoteDecks, handleCreateDeck]
+    [deckModalNodeId, createRemoteDeck, refreshRemoteDecks, handleCreateDeck, decks, remoteDecks]
   );
 
   const handleToggleTheme = useCallback(() => {
@@ -446,6 +476,15 @@ export default function App() {
     []
   );
 
+  const handleRemoteDeckTabContextMenu = useCallback(
+    (e: React.MouseEvent, deck: NodeDeck) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setRemoteDeckContextMenu({ deck, x: e.clientX, y: e.clientY });
+    },
+    []
+  );
+
   const handleSubmitEditDeck = useCallback(
     async (id: string, updates: { name?: string; workspaceId?: string }) => {
       const updated = await handleUpdateDeck(id, updates);
@@ -456,6 +495,15 @@ export default function App() {
     [handleUpdateDeck]
   );
 
+  const handleSubmitEditRemoteDeck = useCallback(
+    async (id: string, updates: { name?: string; workspaceId?: string }) => {
+      if (!editingRemoteDeck) return;
+      const updated = await updateRemoteDeck(editingRemoteDeck.nodeId, id, updates);
+      if (updated) setEditingRemoteDeck(null);
+    },
+    [editingRemoteDeck, updateRemoteDeck]
+  );
+
   const handleConfirmDeleteDeck = useCallback(async () => {
     if (!deletingDeck) return;
     const success = await handleDeleteDeck(deletingDeck.id);
@@ -463,6 +511,13 @@ export default function App() {
       setDeletingDeck(null);
     }
   }, [deletingDeck, handleDeleteDeck]);
+
+  const handleConfirmDeleteRemoteDeck = useCallback(async () => {
+    if (!deletingRemoteDeck) return;
+    await deleteRemoteDeck(deletingRemoteDeck.nodeId, deletingRemoteDeck.id);
+    setActiveDeckIds((prev) => prev.filter((id) => id !== deletingRemoteDeck.id));
+    setDeletingRemoteDeck(null);
+  }, [deletingRemoteDeck, deleteRemoteDeck, setActiveDeckIds]);
 
   const handleSubmitCreateDeckGroup = useCallback(
     async (name: string, deckIds: [string, string]) => {
@@ -507,16 +562,17 @@ export default function App() {
   // Close deck context menu on outside click
   const deckContextMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!deckContextMenu && !groupContextMenu) return;
+    if (!deckContextMenu && !groupContextMenu && !remoteDeckContextMenu) return;
     const handleMouseDown = (e: MouseEvent) => {
       if (deckContextMenuRef.current && !deckContextMenuRef.current.contains(e.target as Node)) {
         setDeckContextMenu(null);
         setGroupContextMenu(null);
+        setRemoteDeckContextMenu(null);
       }
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [deckContextMenu, groupContextMenu]);
+  }, [deckContextMenu, groupContextMenu, remoteDeckContextMenu]);
 
   const handleNewTerminalForDeck = useCallback((deckId: string) => {
     const deckState = deckStates[deckId] || defaultDeckState;
@@ -756,18 +812,26 @@ export default function App() {
                 {deck.name}
               </button>
             ))}
-            {remoteDecks.map((deck) => (
-              <button
-                key={`${deck.nodeId}:${deck.id}`}
-                type="button"
-                className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''}`}
-                onClick={(e) => handleToggleDeck(deck.id, e.shiftKey)}
-                title={`[${deck.nodeName}] ${deck.root}\nShift+クリックで分割表示`}
-              >
-                <span className="deck-tab-node-dot" style={{ background: '#4ec9b0' }} />
-                {deck.name}
-              </button>
-            ))}
+            {remoteDecks.map((deck) => {
+              const isOffline = offlineNodeIds.has(deck.nodeId);
+              return (
+                <button
+                  key={`${deck.nodeId}:${deck.id}`}
+                  type="button"
+                  className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''} ${isOffline ? 'deck-tab-offline' : ''}`}
+                  onClick={(e) => !isOffline && handleToggleDeck(deck.id, e.shiftKey)}
+                  onContextMenu={(e) => !isOffline && handleRemoteDeckTabContextMenu(e, deck)}
+                  disabled={isOffline}
+                  title={isOffline
+                    ? `[${deck.nodeName}] オフライン`
+                    : `[${deck.nodeName}] ${deck.root}\nShift+クリックで分割表示\n右クリックで編集・削除`}
+                >
+                  <span className="deck-tab-node-dot" style={{ background: isOffline ? '#888' : '#4ec9b0' }} />
+                  <span className="deck-tab-node-label">{deck.nodeName}</span>
+                  {deck.name}
+                </button>
+              );
+            })}
             {deckGroups.length > 0 && (
               <span className="deck-tab-separator" />
             )}
@@ -812,7 +876,12 @@ export default function App() {
               <div key={deckId} className="deck-split-pane">
                 <div className="deck-split-header">
                   <span className="deck-split-title">
-                    {isRemote && <span className="deck-tab-node-dot" style={{ background: '#4ec9b0', display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />}
+                    {isRemote && (
+                      <>
+                        <span className="deck-tab-node-dot" style={{ background: '#4ec9b0', display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} />
+                        <span className="deck-tab-node-label" style={{ display: 'inline', verticalAlign: 'middle' }}>{(deck as NodeDeck).nodeName}</span>
+                      </>
+                    )}
                     {deck.name}
                   </span>
                   <div className="deck-split-actions">
@@ -1082,6 +1151,36 @@ export default function App() {
           </button>
         </div>
       )}
+      {remoteDeckContextMenu && (
+        <div ref={deckContextMenuRef} className="context-menu"
+          style={{ top: remoteDeckContextMenu.y, left: remoteDeckContextMenu.x }}>
+          <button type="button" className="context-menu-item"
+            onClick={() => { setEditingRemoteDeck(remoteDeckContextMenu.deck); setRemoteDeckContextMenu(null); }}>
+            編集
+          </button>
+          <button type="button" className="context-menu-item delete"
+            onClick={() => { setDeletingRemoteDeck(remoteDeckContextMenu.deck); setRemoteDeckContextMenu(null); }}>
+            削除
+          </button>
+        </div>
+      )}
+      <DeckEditModal
+        isOpen={editingRemoteDeck !== null}
+        deck={editingRemoteDeck}
+        workspaces={editingRemoteDeck
+          ? remoteWorkspaces.filter(ws => ws.nodeId === editingRemoteDeck.nodeId)
+          : []}
+        onSubmit={handleSubmitEditRemoteDeck}
+        onClose={() => setEditingRemoteDeck(null)}
+      />
+      <ConfirmDialog
+        isOpen={deletingRemoteDeck !== null}
+        title="リモートデッキ削除"
+        message={`「${deletingRemoteDeck?.name ?? ''}」(${deletingRemoteDeck?.nodeName ?? ''})を削除しますか？関連するターミナルも削除されます。`}
+        confirmLabel="削除"
+        onConfirm={handleConfirmDeleteRemoteDeck}
+        onCancel={() => setDeletingRemoteDeck(null)}
+      />
     </div>
   );
 }

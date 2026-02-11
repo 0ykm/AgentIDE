@@ -18,6 +18,8 @@ interface UseDecksProps {
   deckStates: Record<string, import('../types').DeckState>;
   setDeckStates: React.Dispatch<React.SetStateAction<Record<string, import('../types').DeckState>>>;
   initialDeckIds?: string[];
+  /** Remote deck IDs that should be considered valid (not filtered out by validation) */
+  remoteDeckIds?: string[];
 }
 
 export const useDecks = ({
@@ -26,7 +28,8 @@ export const useDecks = ({
   updateDeckState,
   deckStates,
   setDeckStates,
-  initialDeckIds
+  initialDeckIds,
+  remoteDeckIds
 }: UseDecksProps) => {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [activeDeckIds, setActiveDeckIds] = useState<string[]>(initialDeckIds ?? []);
@@ -56,8 +59,11 @@ export const useDecks = ({
     if (decks.length === 0) {
       return;
     }
-    // Filter out invalid deck IDs
-    const validIds = activeDeckIds.filter((id) => decks.some((deck) => deck.id === id));
+    const remoteSet = new Set(remoteDeckIds);
+    // Filter out invalid deck IDs (local decks must exist, remote deck IDs are always valid)
+    const validIds = activeDeckIds.filter(
+      (id) => remoteSet.has(id) || decks.some((deck) => deck.id === id)
+    );
     // If all IDs are valid, keep them
     if (validIds.length === activeDeckIds.length && validIds.length > 0) {
       return;
@@ -68,7 +74,7 @@ export const useDecks = ({
     } else if (decks[0]) {
       setActiveDeckIds([decks[0].id]);
     }
-  }, [decks, activeDeckIds]);
+  }, [decks, activeDeckIds, remoteDeckIds]);
 
   // Load terminals for all active decks
   useEffect(() => {
