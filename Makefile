@@ -1,4 +1,4 @@
-.PHONY: help setup teardown dev kill-dev build-server build-app clean serve
+.PHONY: help setup teardown dev kill-dev build-server build-app build-app-dir clean serve
 
 .DEFAULT_GOAL := help
 
@@ -37,8 +37,12 @@ endif
 build-server: ## Web + Server をビルド
 	mise run build
 
-build-app: ## デスクトップアプリをビルド (Electron)
+build-app: ## デスクトップアプリをビルド (Electron インストーラー)
 	mise run build:desktop
+
+build-app-dir: ## デスクトップアプリをビルド (ポータブル版、コード署名スキップ)
+	mise run build
+	cd apps/desktop && node scripts/prepare.cjs && npx electron-builder --dir
 
 clean: ## ビルド成果物を削除
 	mise run clean
