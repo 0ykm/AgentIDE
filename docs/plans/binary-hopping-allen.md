@@ -1,550 +1,358 @@
-# リモートワークスペース機能 フルスペック実装プラン
+# デッキ関連バグ修正プラン
 
 ## Context
 
-ノードを追加してもワークスペース一覧にリモートWSが表示されない問題への対応。
-バックエンド基盤（`NodeApiClient`、`useRemoteWorkspaces`、`useRemoteFileOperations`、`useRemoteGitState`）は実装済みだが、UIへの統合が未実施。
-`useRemoteDecks`の成功パターンを踏襲し、リモートWSをフロントエンドに完全統合する。
-
-### 確定要件
-- **一覧表示**: ノード別セクション分離（Local / Node-A / Node-B ...）
-- **操作体験**: 完全統一（ファイルツリー・エディタ・Gitはローカルと同じUI）
-- **WS取得**: ノード接続時に自動取得＋手動追加作成も可能
-- **Deck連携**: DeckModalでノード選択→そのノードのWSがドロップダウンに表示
-- **オフライン時**: グレーアウト＋ステータス表示（選択不可）
+ローカルとリモートの2つのデッキを作成・切り替えた際に複数の不具合が発生している：
+1. リモートで名前指定なしでデッキを作ると名前衝突防止が効かず「Deck 1」になる
+2. デッキタブでどのノードのデッキか区別がつかない
+3. デッキを切り替えてもファイルツリー・Git状態がデッキのワークスペースに連動しない
+4. リモートデッキに右クリックメニュー（編集・削除）がない
 
 ---
 
 ## タスク一覧
 
-- [x] Task 1: NodeWorkspace型にnodeName追加 + NodeApiClient.updateWorkspace追加
-- [x] Task 2: useRemoteWorkspacesをuseRemoteDecksパターンに書き換え
-- [x] Task 3: WorkspaceListにノード別セクション分離表示＋オフライン対応
-- [x] Task 4: App.tsxにuseRemoteWorkspaces統合
-- [x] Task 5: ファイル操作・Git操作のローカル/リモート条件切替
-- [x] Task 6: DeckModalにremoteWorkspaces連携
-- [x] Task 7: WorkspaceModalにノード選択追加（リモートWS作成）
-- [x] Task 8: WS編集・削除のリモート対応
-- [x] Task 9: デバッグ・動作確認
+- [x] Task 1: デッキ切り替え時のワークスペースコンテキスト自動同期
+- [x] Task 2: デッキ名の衝突回避（クライアントサイド名前生成）
+- [x] Task 3: リモートデッキタブにノード名を表示
+- [x] Task 4: リモートデッキの右クリックメニュー（編集・削除）追加
+- [x] Task 5: デバッグ・動作確認
 
 ---
 
-## Task 1: 型拡張 + NodeApiClient修正
+## Task 1: デッキ切り替え時のワークスペースコンテキスト自動同期（CRITICAL）
+
+### 問題
+`handleToggleDeck`（App.tsx:551）は`activeDeckIds`のみ更新し、`editorWorkspaceId`を更新しない。
+`useActiveDeckContext`（App.tsx:116）が正しいワークスペースIDを計算しているが未使用。
+結果：リモートデッキタブをクリックしてもファイルツリー・Gitはローカルのまま。
 
 ### 達成要件
-- NodeWorkspaceにnodeNameフィールドが追加されている
-- NodeApiClient.updateWorkspace()が追加されている
-
-### 変更ファイル
-
-**`apps/web/src/remote-nodes/useRemoteWorkspaces.ts` (行5-7)**
-```typescript
-export interface NodeWorkspace extends Workspace {
-  nodeId: string;
-  nodeName: string;  // 追加
-}
-```
-
-**`apps/web/src/remote-nodes/NodeApiClient.ts` (行119の後に追加)**
-```typescript
-updateWorkspace(id: string, updates: { name?: string; path?: string }): Promise<Workspace> {
-  return this.request<Workspace>(`/api/workspaces/${id}`, {
-    method: HTTP_METHOD_PATCH,
-    headers: { 'Content-Type': CONTENT_TYPE_JSON },
-    body: JSON.stringify(updates)
-  });
-}
-```
-- `updateDeck`(行141-150)と同じパターン。サーバー側APIは既存のPATCH `/api/workspaces/:id`をそのまま利用。
-
-**NodeApiClient.previewFilesも追加** (WorkspaceModal用):
-```typescript
-previewFiles(rootPath: string, subpath = ''): Promise<FileSystemEntry[]> {
-  const query = new URLSearchParams({ path: rootPath, subpath });
-  return this.request<FileSystemEntry[]>(`/api/preview?${query.toString()}`);
-}
-```
-- サーバーの既存`GET /api/preview`エンドポイント(`apps/server/src/routes/files.ts` 行46)を利用
-
----
-
-## Task 2: useRemoteWorkspaces書き換え
-
-### 達成要件
-- useRemoteDecks(行21-60)と同じパターンでフラットなremoteWorkspaces配列を返す
-- refreshRemoteWorkspaces()で全オンラインノードから一括取得する
-- create/deleteでローカルステート即時反映する
-
-### 変更ファイル
-
-**`apps/web/src/remote-nodes/useRemoteWorkspaces.ts` (全体書き換え)**
-
-引数を`useRemoteDecks`に合わせて変更:
-```typescript
-export function useRemoteWorkspaces(
-  onlineRemoteNodes: RemoteNodeWithStatus[],  // 変更: getNodeClient→onlineRemoteNodes追加
-  getNodeClient: (nodeId: string) => NodeApiClient | null
-): UseRemoteWorkspacesReturn
-```
-
-返り値:
-```typescript
-export interface UseRemoteWorkspacesReturn {
-  remoteWorkspaces: NodeWorkspace[];        // フラット配列
-  loading: boolean;
-  refreshRemoteWorkspaces: () => Promise<void>;
-  createRemoteWorkspace: (nodeId: string, path: string) => Promise<Workspace | null>;
-  deleteRemoteWorkspace: (nodeId: string, workspaceId: string) => Promise<void>;
-  updateRemoteWorkspace: (nodeId: string, wsId: string, updates: { name?: string; path?: string }) => Promise<Workspace | null>;
-}
-```
-
-- `cachedWorkspaces`(Map)は削除し、`remoteWorkspaces: NodeWorkspace[]`に統一
-- `getWorkspacesForNode()`は削除（refreshで全ノード一括取得）
-- `refreshRemoteWorkspaces`は`useRemoteDecks.refreshRemoteDecks`(行28-60)を模倣
-- `createRemoteWorkspace`/`deleteRemoteWorkspace`は`setRemoteWorkspaces`をフラット配列で更新
-- `updateRemoteWorkspace`を新規追加（Task 1のNodeApiClient.updateWorkspaceを使用）
-
-**参照テンプレート**: `apps/web/src/remote-nodes/useRemoteDecks.ts` 行28-60
-
----
-
-## Task 3: WorkspaceListにセクション分離表示＋オフライン対応
-
-### 達成要件
-- ローカルWSとリモートWSがノード別セクションに分かれて表示される
-- オフラインノードのWSはグレーアウト＋「オフライン」バッジ表示＋選択不可
-- リモートWSにはノードステータスドット(緑/グレー)が付く
-
-### 変更ファイル
-
-**`apps/web/src/components/WorkspaceList.tsx`**
-
-Props拡張:
-```typescript
-interface WorkspaceListProps {
-  workspaces: Workspace[];
-  remoteWorkspaces?: NodeWorkspace[];       // 追加
-  offlineNodeIds?: Set<string>;             // 追加
-  selectedWorkspaceId: string | null;
-  onSelect: (workspaceId: string) => void;
-  onEdit: (workspace: Workspace) => void;
-  onDelete: (workspace: Workspace) => void;
-}
-```
-
-レンダリング構造:
-```
-<section className="panel workspace-panel">
-  <panel-header>ワークスペース</panel-header>
-  <panel-body>
-    {/* ローカルセクション */}
-    <div className="workspace-section">
-      <div className="workspace-section-header">Local</div>
-      {workspaces.map(...)}  // 既存WorkspaceItem
-    </div>
-
-    {/* リモートセクション（ノード別グループ） */}
-    {nodeGroups.map(({ nodeId, nodeName, workspaces, isOffline }) => (
-      <div className={`workspace-section ${isOffline ? 'offline' : ''}`}>
-        <div className="workspace-section-header">
-          <span className="node-dot" style={{ background: isOffline ? '#888' : '#4ec9b0' }} />
-          {nodeName}
-          {isOffline && <span className="offline-badge">オフライン</span>}
-        </div>
-        {workspaces.map(ws => (
-          <WorkspaceItem disabled={isOffline} ... />
-        ))}
-        {workspaces.length === 0 && <div className="empty-state">WSなし</div>}
-      </div>
-    ))}
-  </panel-body>
-</section>
-```
-
-`nodeGroups`はremoteWorkspacesをnodeIdでグルーピングし、offlineNodeIdsで判定:
-```typescript
-const nodeGroups = useMemo(() => {
-  if (!remoteWorkspaces?.length) return [];
-  const grouped = new Map<string, { nodeName: string; workspaces: NodeWorkspace[] }>();
-  for (const ws of remoteWorkspaces) {
-    const group = grouped.get(ws.nodeId) || { nodeName: ws.nodeName, workspaces: [] };
-    group.workspaces.push(ws);
-    grouped.set(ws.nodeId, group);
-  }
-  return Array.from(grouped.entries()).map(([nodeId, { nodeName, workspaces }]) => ({
-    nodeId, nodeName, workspaces, isOffline: offlineNodeIds?.has(nodeId) ?? false
-  }));
-}, [remoteWorkspaces, offlineNodeIds]);
-```
-
-**CSS追加**（既存のワークスペース関連CSSファイル内）:
-- `.workspace-section` `.workspace-section-header` のスタイル
-- `.offline` 配下の `.workspace-item` に `opacity: 0.5; pointer-events: none;`
-- `.offline-badge` のスタイル
-- `.node-dot` (リモートデッキタブの `.deck-tab-node-dot` と同様)
-
----
-
-## Task 4: App.tsxにuseRemoteWorkspaces統合
-
-### 達成要件
-- App.tsxでuseRemoteWorkspacesが呼ばれている
-- オンラインノード変化時にリモートWSが自動取得される
-- activeWorkspaceがリモートWSも含めて解決される
+- デッキ切替時に`editorWorkspaceId`がアクティブデッキの`workspaceId`に自動同期される
+- ワークスペースステートが未初期化の場合は自動作成される
 
 ### 変更ファイル
 
 **`apps/web/src/App.tsx`**
 
-#### 4a. import追加 (行30付近)
+`activeDeckCtx`定義（行116-123）の直後に useEffect を追加：
 ```typescript
-import { useNodes, useRemoteDecks, useRemoteWorkspaces, useActiveDeckContext } from './remote-nodes';
-import type { NodeDeck, NodeWorkspace } from './remote-nodes';
-```
-
-#### 4b. useRemoteWorkspaces呼び出し (行100の直後)
-```typescript
-const { remoteWorkspaces, refreshRemoteWorkspaces, createRemoteWorkspace, deleteRemoteWorkspace, updateRemoteWorkspace } =
-  useRemoteWorkspaces(onlineRemoteNodes, getNodeClient);
-
+// Sync editorWorkspaceId when active deck changes
 useEffect(() => {
-  if (onlineRemoteNodes.length > 0) {
-    refreshRemoteWorkspaces();
-  }
-}, [onlineRemoteNodes.length]); // eslint-disable-line react-hooks/exhaustive-deps
-```
-
-#### 4c. activeWorkspace拡張 (行123-127)
-```typescript
-const activeWorkspace =
-  workspaces.find((ws) => ws.id === editorWorkspaceId) ||
-  remoteWorkspaces.find((ws) => ws.id === editorWorkspaceId) ||
-  null;
-
-const activeRemoteWorkspace = activeWorkspace && 'nodeId' in activeWorkspace
-  ? (activeWorkspace as NodeWorkspace)
-  : null;
-const isRemoteWorkspace = activeRemoteWorkspace !== null;
-const activeNodeClient = activeRemoteWorkspace
-  ? getNodeClient(activeRemoteWorkspace.nodeId)
-  : null;
-```
-
-#### 4d. offlineNodeIds memo追加
-```typescript
-const offlineNodeIds = useMemo(
-  () => new Set(nodes.filter(n => n.status !== 'online' && !n.isLocal).map(n => n.id)),
-  [nodes]
-);
-```
-
-#### 4e. WorkspaceList呼び出し変更 (行651-657)
-```typescript
-<WorkspaceList
-  workspaces={workspaces}
-  remoteWorkspaces={remoteWorkspaces}
-  offlineNodeIds={offlineNodeIds}
-  selectedWorkspaceId={editorWorkspaceId}
-  onSelect={handleSelectWorkspace}
-  onEdit={handleOpenEditWorkspace}
-  onDelete={handleOpenDeleteWorkspace}
-/>
-```
-
-#### 4f. handleSelectWorkspace拡張 (行310-316)
-リモートWSの選択時にワークスペースステートを初期化:
-```typescript
-const handleSelectWorkspace = useCallback(
-  (workspaceId: string) => {
-    setEditorWorkspaceId(workspaceId);
-    setWorkspaceMode('editor');
+  const wsId = activeDeckCtx.workspaceId;
+  if (wsId && wsId !== editorWorkspaceId) {
+    setEditorWorkspaceId(wsId);
+    setWorkspaceMode('editor'); // 確定: WS一覧→エディタに自動切替
+    // Ensure workspace state exists
     setWorkspaceStates((prev) => {
-      if (prev[workspaceId]) return prev;
-      return { ...prev, [workspaceId]: createEmptyWorkspaceState() };
+      if (prev[wsId]) return prev;
+      return { ...prev, [wsId]: createEmptyWorkspaceState() };
     });
-  },
-  [setEditorWorkspaceId, setWorkspaceStates]
-);
+  }
+}, [activeDeckCtx.workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 ```
+
+### 設計判断（確定済み）
+- WS一覧表示中にデッキ切替→エディタ表示に自動切替（ユーザー確認済み）
+- `activeDeckCtx.workspaceId`のみを依存に指定（オブジェクト参照の安定性のため）
+- ワークスペースリストでの手動選択（`handleSelectWorkspace`）はそのまま動作する（editorWorkspaceIdが直接setされるため）
 
 ---
 
-## Task 5: ファイル操作・Git操作の条件切替
+## Task 2: デッキ名の衝突回避
+
+### 問題
+サーバー側は `name || "Deck ${decks.size + 1}"` で名前生成（`apps/server/src/routes/decks.ts:30`）。
+各サーバーは自分のデッキ数しか知らないため、ローカル「Deck 1」とリモート「Deck 1」が同名になる。
 
 ### 達成要件
-- isRemoteWorkspaceフラグに基づき、ローカル/リモートのファイル操作・Git操作が自動切替される
-- UIコンポーネント（FileTree, EditorPane, SourceControl）は変更不要
+- 名前未入力時、ローカル＋リモート全デッキ名を考慮してユニーク名を生成する
 
 ### 変更ファイル
 
-**`apps/web/src/App.tsx` (行129-166)**
+**`apps/web/src/App.tsx`** — `handleSubmitDeck`（行315-331）
 
-両方のフックを常に呼び出し（Reactのhooksルール遵守）、返り値を条件選択:
-
-```typescript
-// ローカルファイル操作（既存）
-const localFileOps = useFileOperations({
-  editorWorkspaceId: isRemoteWorkspace ? null : editorWorkspaceId,
-  activeWorkspaceState,
-  updateWorkspaceState,
-  setStatusMessage
-});
-
-// リモートファイル操作（新規追加）
-const remoteFileOps = useRemoteFileOperations({
-  nodeClient: activeNodeClient,
-  workspaceId: isRemoteWorkspace ? editorWorkspaceId : null,
-  workspaceState: activeWorkspaceState,
-  updateWorkspaceState,
-  setStatusMessage
-});
-
-const { savingFileId, handleRefreshTree, handleToggleDir, handleOpenFile,
-  handleFileChange, handleSaveFile, handleCloseFile, handleCreateFile,
-  handleCreateDirectory, handleDeleteFile, handleDeleteDirectory
-} = isRemoteWorkspace ? remoteFileOps : localFileOps;
-```
-
-Git操作も同様:
-```typescript
-// ローカルGit（既存）
-const localGitOps = useGitState(
-  isRemoteWorkspace ? null : editorWorkspaceId, setStatusMessage
-);
-
-// リモートGit（新規追加）
-const remoteGitOps = useRemoteGitState(
-  activeNodeClient,
-  isRemoteWorkspace ? editorWorkspaceId : null,
-  setStatusMessage
-);
-
-const { gitState, refreshGitStatus, handleSelectRepo, handleStageFile, ... } =
-  isRemoteWorkspace ? remoteGitOps : localGitOps;
-```
-
-**import追加**:
-```typescript
-import { useRemoteFileOperations, useRemoteGitState } from './remote-nodes';
-```
-
-### 引き継ぎ事項
-- `useRemoteFileOperations`は`useFileOperations`と同じ返り値型を持つ（確認済み）
-- `useRemoteGitState`も`useGitState`と同じ返り値構造（確認済み）
-- `editorWorkspaceId`にnullを渡すことでフックを「無効化」するパターンが安全
-
----
-
-## Task 6: DeckModalにremoteWorkspaces連携
-
-### 達成要件
-- DeckModalでノードを選択すると、そのノードのWSがドロップダウンに表示される
-- リモートノード上のDeck作成が可能
-
-### 変更ファイル
-
-**`apps/web/src/App.tsx`**
-
-ステート追加:
-```typescript
-const [deckModalNodeId, setDeckModalNodeId] = useState<string>('');
-```
-
-リモートWS抽出:
-```typescript
-const deckModalRemoteWorkspaces = useMemo(
-  () => deckModalNodeId ? remoteWorkspaces.filter(ws => ws.nodeId === deckModalNodeId) : undefined,
-  [deckModalNodeId, remoteWorkspaces]
-);
-```
-
-DeckModal呼び出し変更 (行862-868):
-```typescript
-<DeckModal
-  isOpen={isDeckModalOpen}
-  workspaces={workspaces}
-  nodes={[localNode, ...nodes]}
-  remoteWorkspaces={deckModalRemoteWorkspaces}
-  onNodeChange={setDeckModalNodeId}
-  onSubmit={handleSubmitDeck}
-  onClose={() => { setIsDeckModalOpen(false); setDeckModalNodeId(''); }}
-/>
-```
-
-handleSubmitDeck拡張（既存のhandleSubmitDeckを修正）:
 ```typescript
 const handleSubmitDeck = useCallback(
   async (name: string, workspaceId: string) => {
+    if (!workspaceId) {
+      setStatusMessage(MESSAGE_SELECT_WORKSPACE);
+      return;
+    }
+    // 名前が空の場合、全デッキを考慮してユニーク名を生成
+    let resolvedName = name;
+    if (!resolvedName) {
+      const allNames = new Set([
+        ...decks.map(d => d.name),
+        ...remoteDecks.map(d => d.name)
+      ]);
+      let n = allNames.size + 1;
+      while (allNames.has(`Deck ${n}`)) n++;
+      resolvedName = `Deck ${n}`;
+    }
     if (deckModalNodeId) {
-      const deck = await createRemoteDeck(deckModalNodeId, name, workspaceId);
+      const deck = await createRemoteDeck(deckModalNodeId, resolvedName, workspaceId);
       if (deck) await refreshRemoteDecks();
     } else {
-      await handleCreateDeck(name, workspaceId);
+      await handleCreateDeck(resolvedName, workspaceId);
     }
     setIsDeckModalOpen(false);
     setDeckModalNodeId('');
   },
-  [deckModalNodeId, createRemoteDeck, refreshRemoteDecks, handleCreateDeck]
+  [deckModalNodeId, createRemoteDeck, refreshRemoteDecks, handleCreateDeck, decks, remoteDecks]
 );
 ```
 
-**`apps/web/src/components/DeckModal.tsx`** → 既存実装がそのまま動作（行28: `displayWorkspaces`ロジック、行65-82: ノード選択が既にある）。変更不要。
+依存配列に `decks`, `remoteDecks` を追加。
 
 ---
 
-## Task 7: WorkspaceModalにノード選択追加＋リモートプレビュー対応
+## Task 3: リモートデッキタブにノード名を表示
+
+### 問題
+リモートデッキタブには小さなティールドットのみ。同名デッキがある場合に区別不能。
 
 ### 達成要件
-- ワークスペース追加モーダルでノード選択が可能
-- ローカル選択時は既存動作（`previewFiles` API）
-- リモート選択時は`NodeApiClient.listFiles`でファイルツリープレビューを表示
-- リモートWSの作成が可能
+- リモートデッキタブにノード名ラベルが表示される
+- デッキ分割ペインのヘッダーにもノード名が表示される
 
 ### 変更ファイル
 
-**`apps/web/src/components/WorkspaceModal.tsx`**
+**`apps/web/src/App.tsx`** — リモートデッキタブ（行759-770）
 
-Props拡張:
-```typescript
-interface WorkspaceModalProps {
-  isOpen: boolean;
-  defaultRoot: string;
-  nodes?: RemoteNodeWithStatus[];    // 追加
-  getNodeClient?: (nodeId: string) => NodeApiClient | null;  // 追加（プレビュー用）
-  onSubmit: (path: string, nodeId?: string) => Promise<void>;  // nodeId追加
-  onClose: () => void;
+```tsx
+{remoteDecks.map((deck) => (
+  <button
+    key={`${deck.nodeId}:${deck.id}`}
+    type="button"
+    className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''}`}
+    onClick={(e) => handleToggleDeck(deck.id, e.shiftKey)}
+    onContextMenu={(e) => handleRemoteDeckTabContextMenu(e, deck)}
+    title={`[${deck.nodeName}] ${deck.root}\nShift+クリックで分割表示\n右クリックで編集・削除`}
+  >
+    <span className="deck-tab-node-dot" style={{ background: '#4ec9b0' }} />
+    <span className="deck-tab-node-label">{deck.nodeName}</span>
+    {deck.name}
+  </button>
+))}
+```
+
+**デッキ分割ペインヘッダー（行814-817）** にもノード名追加：
+```tsx
+<span className="deck-split-title">
+  {isRemote && (
+    <>
+      <span className="deck-tab-node-dot" style={{ background: '#4ec9b0', display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }} />
+      <span className="deck-tab-node-label" style={{ display: 'inline', verticalAlign: 'middle' }}>{(deck as NodeDeck).nodeName}</span>
+    </>
+  )}
+  {deck.name}
+</span>
+```
+
+**オフラインノードのデッキタブ対応（行759-770）**：
+
+`offlineNodeIds`を使ってオフラインノードのデッキタブをグレーアウト＋選択不可にする：
+```tsx
+{remoteDecks.map((deck) => {
+  const isOffline = offlineNodeIds.has(deck.nodeId);
+  return (
+    <button
+      key={`${deck.nodeId}:${deck.id}`}
+      type="button"
+      className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''} ${isOffline ? 'deck-tab-offline' : ''}`}
+      onClick={(e) => !isOffline && handleToggleDeck(deck.id, e.shiftKey)}
+      onContextMenu={(e) => !isOffline && handleRemoteDeckTabContextMenu(e, deck)}
+      disabled={isOffline}
+      title={isOffline
+        ? `[${deck.nodeName}] オフライン`
+        : `[${deck.nodeName}] ${deck.root}\nShift+クリックで分割表示\n右クリックで編集・削除`}
+    >
+      <span className="deck-tab-node-dot" style={{ background: isOffline ? '#888' : '#4ec9b0' }} />
+      <span className="deck-tab-node-label">{deck.nodeName}</span>
+      {deck.name}
+    </button>
+  );
+})}
+```
+
+**`apps/web/src/styles.css`** にスタイル追加：
+```css
+.deck-tab-node-label {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-right: 4px;
+  font-weight: 400;
+}
+.deck-tab.active .deck-tab-node-label {
+  opacity: 0.85;
+}
+.deck-tab-offline {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 ```
 
-コンポーネント内:
-- `selectedNodeId`ステート追加
-- DeckModal(行65-82)と同じノードセレクターUIを追加
-- ファイルツリープレビューのデータ取得ロジック分岐:
-  - ローカル（selectedNodeId === ''）: 既存の`previewFiles(previewRoot, '')`をそのまま使用
-  - リモート（selectedNodeId !== ''）: `getNodeClient(selectedNodeId)?.listFiles('__preview__', previewRoot)`等に切替
-    ※注: リモートプレビューはWSが未作成の状態なのでworkspaceId不要のpreview用APIが必要か、
-    または一旦WSを作成せずにlistFilesの代替としてNodeApiClientに`previewFiles(path)`を追加する
-- リモートプレビューの実装方針: NodeApiClientに`previewFiles(rootPath, subpath)`メソッドを追加し、
-  サーバーの既存`GET /api/preview?path=&subpath=`エンドポイントを利用する
-  （`apps/server/src/routes/files.ts` 行46。ワークスペース不要の汎用ファイル一覧API）
+---
 
-**`apps/web/src/App.tsx`**
+## Task 4: リモートデッキの右クリックメニュー（編集・削除）
 
-handleSubmitWorkspace拡張 (行326-334):
+### 問題
+リモートデッキタブには`onContextMenu`ハンドラーがない。編集・削除ができない。
+
+### 達成要件
+- リモートデッキタブを右クリックで「編集」「削除」メニューが表示される
+- 編集時はDeckEditModalを再利用（該当ノードのリモートWSリストを渡す）
+- 削除時はConfirmDialogを再利用
+
+### 変更ファイル
+
+**`apps/web/src/remote-nodes/useRemoteDecks.ts`** — `updateRemoteDeck` を追加
+
+UseRemoteDecksReturnに追加：
 ```typescript
-const handleSubmitWorkspace = useCallback(
-  async (path: string, nodeId?: string) => {
-    if (nodeId) {
-      const created = await createRemoteWorkspace(nodeId, path);
-      if (created) {
-        await refreshRemoteWorkspaces();
-        setIsWorkspaceModalOpen(false);
-      }
-    } else {
-      const created = await handleCreateWorkspace(path);
-      if (created) setIsWorkspaceModalOpen(false);
+updateRemoteDeck: (nodeId: string, deckId: string, updates: { name?: string; workspaceId?: string }) => Promise<Deck | null>;
+```
+
+実装（`deleteRemoteDeck`の後に追加）：
+```typescript
+const updateRemoteDeck = useCallback(
+  async (nodeId: string, deckId: string, updates: { name?: string; workspaceId?: string }): Promise<Deck | null> => {
+    const client = getNodeClient(nodeId);
+    if (!client) return null;
+    try {
+      const updated = await client.updateDeck(deckId, updates);
+      setRemoteDecks((prev) =>
+        prev.map((d) => d.id === deckId && d.nodeId === nodeId ? { ...d, ...updated } : d)
+      );
+      return updated;
+    } catch {
+      return null;
     }
   },
-  [handleCreateWorkspace, createRemoteWorkspace, refreshRemoteWorkspaces]
+  [getNodeClient]
 );
 ```
 
-WorkspaceModal呼び出し変更 (行856-861):
+returnオブジェクトに `updateRemoteDeck` を追加。
+
+**`apps/web/src/App.tsx`** — 以下を追加：
+
+A) useRemoteDecksのdestructureに `updateRemoteDeck`, `deleteRemoteDeck` を追加（行101）
+
+B) ステート追加（行63付近）：
 ```typescript
-<WorkspaceModal
-  isOpen={isWorkspaceModalOpen}
-  defaultRoot={defaultRoot}
-  nodes={[localNode, ...nodes]}
-  onSubmit={handleSubmitWorkspace}
-  onClose={() => setIsWorkspaceModalOpen(false)}
+const [remoteDeckContextMenu, setRemoteDeckContextMenu] = useState<{ deck: NodeDeck; x: number; y: number } | null>(null);
+const [editingRemoteDeck, setEditingRemoteDeck] = useState<NodeDeck | null>(null);
+const [deletingRemoteDeck, setDeletingRemoteDeck] = useState<NodeDeck | null>(null);
+```
+
+C) ハンドラー追加（handleDeckTabContextMenuの後に）：
+```typescript
+const handleRemoteDeckTabContextMenu = useCallback(
+  (e: React.MouseEvent, deck: NodeDeck) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setRemoteDeckContextMenu({ deck, x: e.clientX, y: e.clientY });
+  },
+  []
+);
+
+const handleSubmitEditRemoteDeck = useCallback(
+  async (id: string, updates: { name?: string; workspaceId?: string }) => {
+    if (!editingRemoteDeck) return;
+    const updated = await updateRemoteDeck(editingRemoteDeck.nodeId, id, updates);
+    if (updated) setEditingRemoteDeck(null);
+  },
+  [editingRemoteDeck, updateRemoteDeck]
+);
+
+const handleConfirmDeleteRemoteDeck = useCallback(async () => {
+  if (!deletingRemoteDeck) return;
+  await deleteRemoteDeck(deletingRemoteDeck.nodeId, deletingRemoteDeck.id);
+  setActiveDeckIds((prev) => prev.filter((id) => id !== deletingRemoteDeck.id));
+  setDeletingRemoteDeck(null);
+}, [deletingRemoteDeck, deleteRemoteDeck, setActiveDeckIds]);
+```
+
+D) outside click の useEffect（行509-519）を拡張：
+- 条件に `remoteDeckContextMenu` を追加
+- mousedownハンドラーで `setRemoteDeckContextMenu(null)` も呼ぶ
+
+E) リモートデッキ用のモーダル/ダイアログ/コンテキストメニューUI追加（既存のdeckContextMenuの後に）：
+
+```tsx
+{/* リモートデッキのコンテキストメニュー */}
+{remoteDeckContextMenu && (
+  <div ref={deckContextMenuRef} className="context-menu"
+    style={{ top: remoteDeckContextMenu.y, left: remoteDeckContextMenu.x }}>
+    <button type="button" className="context-menu-item"
+      onClick={() => { setEditingRemoteDeck(remoteDeckContextMenu.deck); setRemoteDeckContextMenu(null); }}>
+      編集
+    </button>
+    <button type="button" className="context-menu-item delete"
+      onClick={() => { setDeletingRemoteDeck(remoteDeckContextMenu.deck); setRemoteDeckContextMenu(null); }}>
+      削除
+    </button>
+  </div>
+)}
+
+{/* リモートデッキ編集モーダル */}
+<DeckEditModal
+  isOpen={editingRemoteDeck !== null}
+  deck={editingRemoteDeck}
+  workspaces={editingRemoteDeck
+    ? remoteWorkspaces.filter(ws => ws.nodeId === editingRemoteDeck.nodeId)
+    : []}
+  onSubmit={handleSubmitEditRemoteDeck}
+  onClose={() => setEditingRemoteDeck(null)}
+/>
+
+{/* リモートデッキ削除確認 */}
+<ConfirmDialog
+  isOpen={deletingRemoteDeck !== null}
+  title="リモートデッキ削除"
+  message={`「${deletingRemoteDeck?.name ?? ''}」(${deletingRemoteDeck?.nodeName ?? ''})を削除しますか？関連するターミナルも削除されます。`}
+  confirmLabel="削除"
+  onConfirm={handleConfirmDeleteRemoteDeck}
+  onCancel={() => setDeletingRemoteDeck(null)}
 />
 ```
 
 ---
 
-## Task 8: WS編集・削除のリモート対応
-
-### 達成要件
-- リモートWSの編集（名前変更）・削除が可能
-- 既存のWorkspaceEditModal、ConfirmDialogをそのまま再利用
-
-### 変更ファイル
-
-**`apps/web/src/App.tsx`**
-
-handleSubmitEditWorkspace拡張 (行340-348):
-```typescript
-const handleSubmitEditWorkspace = useCallback(
-  async (id: string, updates: { name?: string; path?: string }) => {
-    const remoteWs = remoteWorkspaces.find(ws => ws.id === id);
-    if (remoteWs) {
-      const result = await updateRemoteWorkspace(remoteWs.nodeId, id, updates);
-      if (result) setEditingWorkspace(null);
-    } else {
-      const updated = await handleUpdateWorkspace(id, updates);
-      if (updated) setEditingWorkspace(null);
-    }
-  },
-  [handleUpdateWorkspace, remoteWorkspaces, updateRemoteWorkspace]
-);
-```
-
-handleConfirmDeleteWorkspace拡張 (行354-361):
-```typescript
-const handleConfirmDeleteWorkspace = useCallback(async () => {
-  if (!deletingWorkspace) return;
-  const remoteWs = remoteWorkspaces.find(ws => ws.id === deletingWorkspace.id);
-  if (remoteWs) {
-    await deleteRemoteWorkspace(remoteWs.nodeId, deletingWorkspace.id);
-    setDeletingWorkspace(null);
-  } else {
-    const success = await handleDeleteWorkspace(deletingWorkspace.id);
-    if (success) {
-      removeDecksForWorkspace(deletingWorkspace.id);
-      setDeletingWorkspace(null);
-    }
-  }
-}, [deletingWorkspace, handleDeleteWorkspace, removeDecksForWorkspace, remoteWorkspaces, deleteRemoteWorkspace]);
-```
-
----
-
-## Task 9: デバッグ・動作確認
+## Task 5: デバッグ・動作確認
 
 ### 確認項目
-- [ ] ノード追加後、WS一覧にリモートWSがノード別セクションで表示される
-- [ ] オフラインノードのWSがグレーアウト表示される
-- [ ] リモートWSを選択してファイルツリーが表示される
-- [ ] リモートWSのファイルをエディタで開き、編集・保存できる
-- [ ] リモートWSのGitステータスが表示され、stage/commit/push操作ができる
-- [ ] DeckModalでリモートノード選択→そのノードのWSがドロップダウンに出る→Deck作成
-- [ ] WorkspaceModalでリモートノード選択→パス入力→WS作成
-- [ ] リモートWSの名前編集・削除ができる
-- [ ] ノードがオフラインになった時にWSがグレーアウトする
+- [x] ローカルデッキ「Deck 1」作成後、リモートで名前なしデッキを作ると「Deck 2」になる
+- [x] リモートデッキタブにノード名が表示される
+- [x] ローカルデッキ→リモートデッキ切替でファイルツリーがリモートWSに連動する
+- [x] リモートデッキ→ローカルデッキ切替でファイルツリーがローカルWSに戻る
+- [x] リモートデッキタブ右クリックで「編集」「削除」メニューが表示される
+- [x] リモートデッキの編集（名前変更）が動作する
+- [x] リモートデッキの削除ダイアログが正しく表示される
+- [ ] スプリットビュー（ローカル＋リモート並列）でターミナルが正しく表示される（※別途確認）
+- [ ] オフラインノードのデッキタブがグレーアウトして選択不可になる（※オフラインノードが必要）
 
-### デバッグ方法
-- `skill: playwright-debug` を使用してブラウザ上での動作確認
+### デバッグ中に発見・修正した追加の問題
+- useDecksのactiveDeckIdsバリデーション効果がリモートデッキIDを不正として除外していた
+  - 修正: `remoteDeckIds`パラメータを追加し、リモートデッキIDもバリデーションで有効として扱う
+  - フック呼び出し順序を変更: useNodes/useRemoteDecks → useDecks の順に
 
 ---
 
 ## 引き継ぎ事項
 
-### オフライン時の挙動（確定）
-- WS一覧: オフラインノードのWSはグレーアウト＋「オフライン」バッジ（Task 3）
-- エディタ操作中の切断: 個別API呼び出し失敗時に`setStatusMessage`でエラー表示。未保存の編集内容はエディタに保持される（既存の`useRemoteFileOperations`/`useRemoteGitState`のエラーハンドリングパターンをそのまま利用）
-- オーバーレイやブロックUIは不要
+### 既存パターンの再利用
+- `deckContextMenu`のステート・ハンドラー・UIパターン → `remoteDeckContextMenu`にコピー
+- `DeckEditModal` → リモートデッキ編集に再利用（workspacesにリモートWSを渡す）
+- `ConfirmDialog` → リモートデッキ削除に再利用
+- `updateRemoteDeck` → `deleteRemoteDeck`と同じパターンで追加
 
-### Reactフックルール
-Task 5で`useFileOperations`と`useRemoteFileOperations`の両方を常に呼び出す必要がある。`editorWorkspaceId`にnullを渡して無効化するパターンを使用。
-
-### ワークスペースID一意性
-ローカルWSとリモートWSでUUID衝突の可能性は理論上あるが極めて低い。現時点では対応不要。将来的に問題が出た場合は`${nodeId}:${workspaceId}`の複合キー化を検討。
+### スプリットビュー時の挙動
+- `editorWorkspaceId`は`activeDeckIds[0]`のWSに同期
+- スプリットビューで異なるノードのデッキが並ぶ場合、ファイルツリーは最初のデッキのWSを表示
+- 各ペインのターミナルは既にデッキごとに正しいノードに接続されている（App.tsx:807-810）
 
 ### サーバー側変更
-不要。NodeApiClientが既にすべてのAPI呼び出しメソッドを持っており、リモートノードのサーバーは既存のエンドポイントをそのまま公開している。
-
-### 既存パターンの再利用
-- `useRemoteDecks`(行21-60) → `useRemoteWorkspaces`書き換えのテンプレート
-- `DeckModal`(行65-82) → `WorkspaceModal`のノード選択UIテンプレート
-- `deck-tab-node-dot` → ワークスペースセクションのノードドットスタイルのテンプレート
+不要。クライアントサイドのみの修正。
