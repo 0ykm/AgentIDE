@@ -29,10 +29,15 @@ export type {
   GitDiff,
   GitRepoInfo,
   GitFileStatusWithRepo,
-  MultiRepoGitStatus
+  MultiRepoGitStatus,
+  NodeStatus,
+  RemoteNode,
+  RemoteNodeWithStatus,
+  NodeInfo,
+  RegisterNodeRequest
 } from '@deck-ide/shared/types';
 
-export type AppView = 'workspace' | 'terminal' | 'agent';
+export type AppView = 'workspace' | 'terminal' | 'agent' | 'nodes';
 export type WorkspaceMode = 'list' | 'editor';
 export type ThemeMode = 'light' | 'dark';
 export type SidebarPanel = 'files' | 'git';

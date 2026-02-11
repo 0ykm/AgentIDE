@@ -1,9 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Workspace } from '../types';
+import type { RemoteNodeWithStatus } from '@deck-ide/shared/types';
 
 interface DeckModalProps {
   isOpen: boolean;
   workspaces: Workspace[];
+  nodes?: RemoteNodeWithStatus[];
+  onNodeChange?: (nodeId: string) => void;
+  remoteWorkspaces?: Workspace[];
   onSubmit: (name: string, workspaceId: string) => Promise<void>;
   onClose: () => void;
 }
@@ -11,17 +15,31 @@ interface DeckModalProps {
 export const DeckModal = ({
   isOpen,
   workspaces,
+  nodes,
+  onNodeChange,
+  remoteWorkspaces,
   onSubmit,
   onClose
 }: DeckModalProps) => {
   const [deckWorkspaceId, setDeckWorkspaceId] = useState(workspaces[0]?.id || '');
   const [deckNameDraft, setDeckNameDraft] = useState('');
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+
+  const displayWorkspaces = selectedNodeId && remoteWorkspaces ? remoteWorkspaces : workspaces;
 
   useEffect(() => {
-    if (isOpen && workspaces.length > 0 && !deckWorkspaceId) {
-      setDeckWorkspaceId(workspaces[0].id);
+    if (isOpen) {
+      setSelectedNodeId('');
+      const ws = workspaces[0]?.id || '';
+      setDeckWorkspaceId(ws);
     }
-  }, [isOpen, workspaces, deckWorkspaceId]);
+  }, [isOpen, workspaces]);
+
+  useEffect(() => {
+    if (isOpen && displayWorkspaces.length > 0) {
+      setDeckWorkspaceId(displayWorkspaces[0].id);
+    }
+  }, [isOpen, displayWorkspaces]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -44,13 +62,32 @@ export const DeckModal = ({
             onChange={(event) => setDeckNameDraft(event.target.value)}
           />
         </label>
+        {nodes && nodes.length > 0 && (
+          <label className="field">
+            <span>{'\u30ce\u30fc\u30c9'}</span>
+            <select
+              value={selectedNodeId}
+              onChange={(event) => {
+                setSelectedNodeId(event.target.value);
+                onNodeChange?.(event.target.value);
+              }}
+            >
+              <option value="">ローカル</option>
+              {nodes.filter(n => !n.isLocal && n.status === 'online').map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name} ({node.host}:{node.port})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field">
           <span>{'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9'}</span>
           <select
             value={deckWorkspaceId}
             onChange={(event) => setDeckWorkspaceId(event.target.value)}
           >
-            {workspaces.map((workspace) => (
+            {displayWorkspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.id}>
                 {workspace.path}
               </option>

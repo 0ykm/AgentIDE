@@ -17,6 +17,7 @@ import { WorkspaceList } from './components/WorkspaceList';
 import { WorkspaceModal } from './components/WorkspaceModal';
 import { WorkspaceEditModal } from './components/WorkspaceEditModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { NodeManagement } from './components/NodeManagement';
 import { getConfig, getWsBase } from './api';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useDeckState } from './hooks/useDeckState';
@@ -26,6 +27,8 @@ import { useDeckGroups } from './hooks/useDeckGroups';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
 import { useAgents } from './hooks/useAgents';
+import { useNodes, useRemoteDecks, useActiveDeckContext } from './remote-nodes';
+import type { NodeDeck } from './remote-nodes';
 import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace, Deck, DeckGroup, TerminalLayout } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
@@ -92,6 +95,29 @@ export default function App() {
 
   const { sessions: agentSessions, handleCreateAgent, handleDeleteAgent } = useAgents({ setStatusMessage });
 
+  // Remote nodes
+  const { nodes, localNode, onlineRemoteNodes, getNodeClient, addNode, removeNode, testConnection, refreshAllStatuses } = useNodes();
+  const { remoteDecks, refreshRemoteDecks } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
+
+  // Refresh remote decks when online nodes change
+  useEffect(() => {
+    if (onlineRemoteNodes.length > 0) {
+      refreshRemoteDecks();
+    }
+  }, [onlineRemoteNodes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const wsBase = getWsBase();
+
+  // Active deck context: determines if active deck is local or remote
+  const activeDeckCtx = useActiveDeckContext({
+    activeDeckIds,
+    localDecks: decks,
+    remoteDecks,
+    localNodeId: localNode.id,
+    getNodeClient,
+    localWsBase: wsBase
+  });
+
   const defaultWorkspaceState = useMemo(() => createEmptyWorkspaceState(), []);
   const defaultDeckState = useMemo(() => createEmptyDeckState(), []);
   const activeWorkspace =
@@ -139,7 +165,6 @@ export default function App() {
     handleLoadLogs
   } = useGitState(editorWorkspaceId, setStatusMessage);
 
-  const wsBase = getWsBase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
     [workspaces]
@@ -652,6 +677,18 @@ export default function App() {
                 {deck.name}
               </button>
             ))}
+            {remoteDecks.map((deck) => (
+              <button
+                key={`${deck.nodeId}:${deck.id}`}
+                type="button"
+                className={`deck-tab ${activeDeckIds.includes(deck.id) ? 'active' : ''}`}
+                onClick={(e) => handleToggleDeck(deck.id, e.shiftKey)}
+                title={`[${deck.nodeName}] ${deck.root}\nShift+クリックで分割表示`}
+              >
+                <span className="deck-tab-node-dot" style={{ background: '#4ec9b0' }} />
+                {deck.name}
+              </button>
+            ))}
             {deckGroups.length > 0 && (
               <span className="deck-tab-separator" />
             )}
@@ -685,13 +722,20 @@ export default function App() {
           </div>
         ) : (
           activeDeckIds.map((deckId) => {
-            const deck = decks.find((d) => d.id === deckId);
+            const deck = decks.find((d) => d.id === deckId) || remoteDecks.find((d) => d.id === deckId);
             const deckState = deckStates[deckId] || defaultDeckState;
             if (!deck) return null;
+            const isRemote = 'nodeId' in deck;
+            const deckNodeClient = isRemote ? getNodeClient((deck as NodeDeck).nodeId) : null;
+            const deckWsBase = deckNodeClient ? deckNodeClient.getWsBase() : wsBase;
+            const deckWsTokenFetcher = deckNodeClient ? () => deckNodeClient.getWsToken() : undefined;
             return (
               <div key={deckId} className="deck-split-pane">
                 <div className="deck-split-header">
-                  <span className="deck-split-title">{deck.name}</span>
+                  <span className="deck-split-title">
+                    {isRemote && <span className="deck-tab-node-dot" style={{ background: '#4ec9b0', display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />}
+                    {deck.name}
+                  </span>
                   <div className="deck-split-actions">
                     {deckState.terminals.length === 2 && (
                       <button
@@ -741,8 +785,9 @@ export default function App() {
                 </div>
                 <TerminalPane
                   terminals={deckState.terminals}
-                  wsBase={wsBase}
+                  wsBase={deckWsBase}
                   layout={deck.terminalLayout}
+                  wsTokenFetcher={deckWsTokenFetcher}
                   onDeleteTerminal={(terminalId) => handleTerminalDeleteForDeck(deckId, terminalId)}
                 />
               </div>
@@ -796,6 +841,15 @@ export default function App() {
         {view === 'workspace' && workspaceView}
         {view === 'terminal' && terminalView}
         {view === 'agent' && agentView}
+        {view === 'nodes' && (
+          <NodeManagement
+            nodes={[localNode, ...nodes]}
+            onAddNode={addNode}
+            onRemoveNode={removeNode}
+            onTestConnection={testConnection}
+            onRefreshStatuses={refreshAllStatuses}
+          />
+        )}
       </main>
       <StatusMessage message={statusMessage} onDismiss={clearStatusMessage} />
       <WorkspaceModal
@@ -807,6 +861,7 @@ export default function App() {
       <DeckModal
         isOpen={isDeckModalOpen}
         workspaces={workspaces}
+        nodes={[localNode, ...nodes]}
         onSubmit={handleSubmitDeck}
         onClose={() => setIsDeckModalOpen(false)}
       />

@@ -5,6 +5,7 @@ interface TerminalPaneProps {
   terminals: TerminalSession[];
   wsBase: string;
   layout: TerminalLayout;
+  wsTokenFetcher?: () => Promise<{ token: string; authEnabled: boolean }>;
   onDeleteTerminal: (terminalId: string) => void;
 }
 
@@ -30,6 +31,7 @@ export function TerminalPane({
   terminals,
   wsBase,
   layout,
+  wsTokenFetcher,
   onDeleteTerminal,
 }: TerminalPaneProps) {
   const { cols, rows } = getOptimalGrid(terminals.length, layout);
@@ -53,6 +55,7 @@ export function TerminalPane({
               key={terminal.id}
               session={terminal}
               wsUrl={`${wsBase}/api/terminals/${terminal.id}`}
+              wsTokenFetcher={wsTokenFetcher}
               onDelete={() => onDeleteTerminal(terminal.id)}
             />
           ))}

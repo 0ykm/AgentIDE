@@ -57,5 +57,14 @@ export const TERMINAL_FONT_SIZE = 13;
 export const TERMINAL_BACKGROUND_COLOR = '#000000';
 export const TERMINAL_FOREGROUND_COLOR = '#ffffff';
 
+// Node management messages
+export const MESSAGE_NODE_OFFLINE = 'ノードがオフラインです';
+export const MESSAGE_NODE_ADD_ERROR = 'ノードの追加に失敗しました';
+export const MESSAGE_NODE_UPDATE_ERROR = 'ノードの更新に失敗しました';
+export const MESSAGE_NODE_DELETE_ERROR = 'ノードの削除に失敗しました';
+export const MESSAGE_NODE_CONNECTION_TEST_OK = '接続テスト成功';
+export const MESSAGE_NODE_CONNECTION_TEST_FAIL = '接続テスト失敗';
+export const NODE_HEALTH_CHECK_INTERVAL = 15000;
+
 // Local storage keys
 export const STORAGE_KEY_THEME = 'deck-theme';

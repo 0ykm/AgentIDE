@@ -17,6 +17,7 @@ import {
 interface TerminalTileProps {
   session: TerminalSession;
   wsUrl: string;
+  wsTokenFetcher?: () => Promise<{ token: string; authEnabled: boolean }>;
   onDelete: () => void;
 }
 
@@ -31,6 +32,7 @@ const RECONNECT_BASE_DELAY_MS = 1000;
 export function TerminalTile({
   session,
   wsUrl,
+  wsTokenFetcher,
   onDelete
 }: TerminalTileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -438,7 +440,7 @@ export function TerminalTile({
 
       try {
         // Get a one-time token for WebSocket authentication
-        const { token, authEnabled } = await getWsToken();
+        const { token, authEnabled } = wsTokenFetcher ? await wsTokenFetcher() : await getWsToken();
         if (cancelled) return;
 
         // Append token to URL if auth is enabled
