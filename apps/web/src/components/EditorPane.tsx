@@ -80,7 +80,7 @@ export function EditorPane({
   theme
 }: EditorPaneProps) {
   const activeFile = files.find((file) => file.id === activeFileId);
-  const editorRef = useRef<ReturnType<OnMount> | null>(null);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const cursorPositionRef = useRef({ line: 1, column: 1 });
 
   const handleEditorMount: OnMount = useCallback((editor) => {

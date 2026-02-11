@@ -110,7 +110,7 @@ export function TerminalTile({
 
     // DSR (Device Status Report) - CSI n
     term.parser.registerCsiHandler({ final: 'n' }, (params) => {
-      const param = params.length > 0 ? params.params[0] : 0;
+      const param = params.length > 0 ? Number(params[0]) : 0;
 
       if (param === 6) {
         // CPR - Cursor Position Report
@@ -151,7 +151,7 @@ export function TerminalTile({
 
     // DECRQM (Request Mode) - CSI ? Ps $ p
     term.parser.registerCsiHandler({ prefix: '?', final: 'p', intermediates: '$' }, (params) => {
-      const mode = params.params[0] || 0;
+      const mode = Number(params[0]) || 0;
       console.log(`[DECRQM] Mode query for ${mode}`);
 
       // Respond appropriately for common modes
@@ -283,7 +283,7 @@ export function TerminalTile({
 
     // XTQMODKEYS - modifyOtherKeys query (CSI ? 4 m)
     term.parser.registerCsiHandler({ prefix: '?', final: 'm' }, (params) => {
-      const param = params.params[0];
+      const param = Number(params[0]);
       if (param === 4) {
         console.log('[XTQMODKEYS] Responding to modifyOtherKeys query');
         // Report as level 1 enabled (enhanced keyboard mode)
@@ -296,7 +296,7 @@ export function TerminalTile({
     // XTWINOPS - Window operations (CSI Ps t)
     // Note: CSI 14t, 16t, 18t are handled automatically by xterm.js with windowOptions enabled
     term.parser.registerCsiHandler({ final: 't' }, (params) => {
-      const operation = params.params[0];
+      const operation = Number(params[0]);
 
       // Only handle operations NOT covered by windowOptions
       if (operation === 19) {
@@ -396,7 +396,7 @@ export function TerminalTile({
 
     // REP - Repeat character (CSI Ps b) - SECURITY: Clamp to prevent DoS
     term.parser.registerCsiHandler({ final: 'b' }, (params) => {
-      const repeatCount = params.params[0] || 1;
+      const repeatCount = Number(params[0]) || 1;
       if (repeatCount > 65535) {
         console.warn(`[REP] Large repeat count ${repeatCount} clamped to 65535 for security`);
         // Don't execute, just consume
