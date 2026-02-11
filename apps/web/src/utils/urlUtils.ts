@@ -10,6 +10,7 @@ export type UrlState = {
   workspaceId: string | null;
   deckIds: string[];
   workspaceMode: WorkspaceMode;
+  groupId: string | null;
 };
 
 /**
@@ -21,7 +22,8 @@ export function parseUrlState(): UrlState {
       view: 'terminal',
       workspaceId: null,
       deckIds: [],
-      workspaceMode: 'list'
+      workspaceMode: 'list',
+      groupId: null
     };
   }
   const params = new URLSearchParams(window.location.search);
@@ -33,6 +35,7 @@ export function parseUrlState(): UrlState {
     view: viewParam === 'workspace' ? 'workspace' : viewParam === 'agent' ? 'agent' : 'terminal',
     workspaceId: params.get('workspace'),
     deckIds,
-    workspaceMode: modeParam === 'editor' ? 'editor' : 'list'
+    workspaceMode: modeParam === 'editor' ? 'editor' : 'list',
+    groupId: params.get('group')
   };
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DeckModal } from './components/DeckModal';
 import { DeckEditModal } from './components/DeckEditModal';
+import { DeckGroupCreateModal } from './components/DeckGroupCreateModal';
+import { DeckGroupEditModal } from './components/DeckGroupEditModal';
 import { DiffViewer } from './components/DiffViewer';
 import { EditorPane } from './components/EditorPane';
 import { FileTree } from './components/FileTree';
@@ -20,10 +22,11 @@ import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useDeckState } from './hooks/useDeckState';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useDecks } from './hooks/useDecks';
+import { useDeckGroups } from './hooks/useDeckGroups';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
 import { useAgents } from './hooks/useAgents';
-import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace, Deck } from './types';
+import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace, Deck, DeckGroup } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
   MESSAGE_WORKSPACE_REQUIRED,
@@ -55,6 +58,11 @@ export default function App() {
   const [deckContextMenu, setDeckContextMenu] = useState<{ deck: Deck; x: number; y: number } | null>(null);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const [deletingDeck, setDeletingDeck] = useState<Deck | null>(null);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(initialUrlState.groupId ?? null);
+  const [groupCreateInitialDeck, setGroupCreateInitialDeck] = useState<Deck | null>(null);
+  const [editingDeckGroup, setEditingDeckGroup] = useState<DeckGroup | null>(null);
+  const [deletingDeckGroup, setDeletingDeckGroup] = useState<DeckGroup | null>(null);
+  const [groupContextMenu, setGroupContextMenu] = useState<{ group: DeckGroup; x: number; y: number } | null>(null);
 
   const { workspaceStates, setWorkspaceStates, updateWorkspaceState, initializeWorkspaceStates } =
     useWorkspaceState();
@@ -78,6 +86,9 @@ export default function App() {
       setDeckStates,
       initialDeckIds: initialUrlState.deckIds
     });
+
+  const { deckGroups, handleCreateDeckGroup, handleUpdateDeckGroup, handleDeleteDeckGroup } =
+    useDeckGroups({ setStatusMessage, decks });
 
   const { sessions: agentSessions, handleCreateAgent, handleDeleteAgent } = useAgents({ setStatusMessage });
 
@@ -165,6 +176,7 @@ export default function App() {
       setEditorWorkspaceId(next.workspaceId ?? null);
       setActiveDeckIds(next.deckIds);
       setWorkspaceMode(next.workspaceMode);
+      setActiveGroupId(next.groupId);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -182,12 +194,15 @@ export default function App() {
     if (view === 'workspace' && workspaceMode === 'editor' && editorWorkspaceId) {
       params.set('mode', 'editor');
     }
+    if (activeGroupId) {
+      params.set('group', activeGroupId);
+    }
     const query = params.toString();
     const nextUrl = query
       ? `${window.location.pathname}?${query}`
       : window.location.pathname;
     window.history.replaceState(null, '', nextUrl);
-  }, [view, editorWorkspaceId, activeDeckIds, workspaceMode]);
+  }, [view, editorWorkspaceId, activeDeckIds, workspaceMode, activeGroupId]);
 
   const clearStatusMessage = useCallback(() => setStatusMessage(''), []);
 
@@ -347,18 +362,59 @@ export default function App() {
     }
   }, [deletingDeck, handleDeleteDeck]);
 
+  const handleSubmitCreateDeckGroup = useCallback(
+    async (name: string, deckIds: [string, string]) => {
+      const group = await handleCreateDeckGroup(name, deckIds);
+      if (group) {
+        setGroupCreateInitialDeck(null);
+      }
+    },
+    [handleCreateDeckGroup]
+  );
+
+  const handleSubmitEditDeckGroup = useCallback(
+    async (id: string, updates: { name?: string; deckIds?: [string, string] }) => {
+      const updated = await handleUpdateDeckGroup(id, updates);
+      if (updated) {
+        setEditingDeckGroup(null);
+      }
+    },
+    [handleUpdateDeckGroup]
+  );
+
+  const handleConfirmDeleteDeckGroup = useCallback(async () => {
+    if (!deletingDeckGroup) return;
+    const success = await handleDeleteDeckGroup(deletingDeckGroup.id);
+    if (success) {
+      if (activeGroupId === deletingDeckGroup.id) {
+        setActiveGroupId(null);
+      }
+      setDeletingDeckGroup(null);
+    }
+  }, [deletingDeckGroup, handleDeleteDeckGroup, activeGroupId]);
+
+  const handleGroupTabContextMenu = useCallback(
+    (e: React.MouseEvent, group: DeckGroup) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setGroupContextMenu({ group, x: e.clientX, y: e.clientY });
+    },
+    []
+  );
+
   // Close deck context menu on outside click
   const deckContextMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!deckContextMenu) return;
+    if (!deckContextMenu && !groupContextMenu) return;
     const handleMouseDown = (e: MouseEvent) => {
       if (deckContextMenuRef.current && !deckContextMenuRef.current.contains(e.target as Node)) {
         setDeckContextMenu(null);
+        setGroupContextMenu(null);
       }
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [deckContextMenu]);
+  }, [deckContextMenu, groupContextMenu]);
 
   const handleNewTerminalForDeck = useCallback((deckId: string) => {
     const deckState = deckStates[deckId] || defaultDeckState;
@@ -383,6 +439,7 @@ export default function App() {
   );
 
   const handleToggleDeck = useCallback((deckId: string, shiftKey = false) => {
+    setActiveGroupId(null);
     setActiveDeckIds((prev) => {
       if (prev.includes(deckId)) {
         // Remove deck (but keep at least one)
@@ -403,6 +460,19 @@ export default function App() {
       }
     });
   }, [setActiveDeckIds]);
+
+  const handleToggleGroup = useCallback((groupId: string) => {
+    const group = deckGroups.find((g) => g.id === groupId);
+    if (!group) return;
+    if (activeGroupId === groupId) {
+      // Deselect group, show first deck only
+      setActiveGroupId(null);
+      setActiveDeckIds([group.deckIds[0]]);
+    } else {
+      setActiveGroupId(groupId);
+      setActiveDeckIds([...group.deckIds]);
+    }
+  }, [deckGroups, activeGroupId, setActiveDeckIds]);
 
 
   const isWorkspaceEditorOpen = workspaceMode === 'editor' && Boolean(editorWorkspaceId);
@@ -574,6 +644,21 @@ export default function App() {
                 {deck.name}
               </button>
             ))}
+            {deckGroups.length > 0 && (
+              <span className="deck-tab-separator" />
+            )}
+            {deckGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={`deck-tab deck-tab-group ${activeGroupId === group.id ? 'active' : ''}`}
+                onClick={() => handleToggleGroup(group.id)}
+                onContextMenu={(e) => handleGroupTabContextMenu(e, group)}
+                title={`グループ: ${group.name}\nクリックで2デッキ横並び表示\n右クリックで編集・削除`}
+              >
+                {group.name}
+              </button>
+            ))}
             <button
               type="button"
               className="deck-tab deck-tab-add"
@@ -740,12 +825,73 @@ export default function App() {
         onConfirm={handleConfirmDeleteDeck}
         onCancel={() => setDeletingDeck(null)}
       />
+      <DeckGroupCreateModal
+        isOpen={groupCreateInitialDeck !== null}
+        initialDeck={groupCreateInitialDeck}
+        decks={decks}
+        onSubmit={handleSubmitCreateDeckGroup}
+        onClose={() => setGroupCreateInitialDeck(null)}
+      />
+      <DeckGroupEditModal
+        isOpen={editingDeckGroup !== null}
+        group={editingDeckGroup}
+        decks={decks}
+        onSubmit={handleSubmitEditDeckGroup}
+        onClose={() => setEditingDeckGroup(null)}
+      />
+      <ConfirmDialog
+        isOpen={deletingDeckGroup !== null}
+        title="グループ削除"
+        message={`グループ「${deletingDeckGroup?.name ?? ''}」を削除しますか？デッキ自体は削除されません。`}
+        confirmLabel="削除"
+        onConfirm={handleConfirmDeleteDeckGroup}
+        onCancel={() => setDeletingDeckGroup(null)}
+      />
+      {groupContextMenu && (
+        <div
+          ref={deckContextMenuRef}
+          className="context-menu"
+          style={{ top: groupContextMenu.y, left: groupContextMenu.x }}
+        >
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setEditingDeckGroup(groupContextMenu.group);
+              setGroupContextMenu(null);
+            }}
+          >
+            編集
+          </button>
+          <button
+            type="button"
+            className="context-menu-item delete"
+            onClick={() => {
+              setDeletingDeckGroup(groupContextMenu.group);
+              setGroupContextMenu(null);
+            }}
+          >
+            削除
+          </button>
+        </div>
+      )}
       {deckContextMenu && (
         <div
           ref={deckContextMenuRef}
           className="context-menu"
           style={{ top: deckContextMenu.y, left: deckContextMenu.x }}
         >
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setGroupCreateInitialDeck(deckContextMenu.deck);
+              setDeckContextMenu(null);
+            }}
+          >
+            グループ作成
+          </button>
+          <div className="context-menu-separator" />
           <button
             type="button"
             className="context-menu-item"

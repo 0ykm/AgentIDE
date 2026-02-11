@@ -1479,6 +1479,39 @@ textarea {
   border-color: var(--accent);
 }
 
+.deck-tab-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.deck-tab-group {
+  border-style: dashed;
+  border-color: var(--border);
+  position: relative;
+  padding-left: 24px;
+}
+
+.deck-tab-group::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  box-shadow: 2px 2px 0 -0.5px currentColor;
+}
+
+.deck-tab-group.active {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
 .deck-tab-add {
   min-width: 28px;
   padding: 5px 10px;
