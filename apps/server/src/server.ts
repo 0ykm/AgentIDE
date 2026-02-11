@@ -18,6 +18,7 @@ import {
   MAX_FILE_SIZE,
   MAX_REQUEST_BODY_SIZE,
   TRUST_PROXY,
+  APP_VERSION,
   hasStatic,
   distDir,
   dbPath
@@ -25,7 +26,7 @@ import {
 import { securityHeaders } from './middleware/security.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { basicAuthMiddleware, generateWsToken, isBasicAuthEnabled } from './middleware/auth.js';
-import { checkDatabaseIntegrity, handleDatabaseCorruption, initializeDatabase, loadPersistedState, loadDeckGroups, loadPersistedTerminals, saveAllTerminalBuffers } from './utils/database.js';
+import { checkDatabaseIntegrity, handleDatabaseCorruption, initializeDatabase, loadPersistedState, loadDeckGroups, loadPersistedTerminals, saveAllTerminalBuffers, loadNodeIdentity, loadNodes } from './utils/database.js';
 import { createWorkspaceRouter, getConfigHandler } from './routes/workspaces.js';
 import { createDeckRouter } from './routes/decks.js';
 import { createDeckGroupRouter } from './routes/deckGroups.js';
@@ -34,6 +35,7 @@ import { createTerminalRouter } from './routes/terminals.js';
 import { createGitRouter } from './routes/git.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { createAgentRouter } from './routes/agents.js';
+import { createNodeInfoHandler, createNodeRouter } from './routes/nodes.js';
 import { setupWebSocketServer, getConnectionLimit, setConnectionLimit, getConnectionStats, clearAllConnections } from './websocket.js';
 
 // Request ID and logging middleware
@@ -68,6 +70,10 @@ export function createServer() {
   const db = new DatabaseSync(dbPath);
   initializeDatabase(db);
 
+  // Load node identity
+  const nodeIdentity = loadNodeIdentity(db);
+  const nodes = loadNodes(db);
+
   // Initialize state
   const workspaces = new Map<string, Workspace>();
   const workspacePathIndex = new Map<string, string>();
@@ -94,6 +100,9 @@ export function createServer() {
     }
   }));
 
+  // Node info endpoint (no auth required, must be before auth middleware)
+  app.get('/api/node/info', createNodeInfoHandler(nodeIdentity.id, nodeIdentity.name));
+
   // Basic auth middleware
   if (basicAuthMiddleware) {
     app.use('/api/*', basicAuthMiddleware);
@@ -103,6 +112,8 @@ export function createServer() {
   app.get('/health', (c) => {
     return c.json({
       status: 'ok',
+      nodeId: nodeIdentity.id,
+      version: APP_VERSION,
       timestamp: new Date().toISOString(),
       uptime: process.uptime()
     });
@@ -118,6 +129,7 @@ export function createServer() {
   const { router: agentRouter, abortAllAgents } = createAgentRouter(db, workspaces);
   app.route('/api/agents', agentRouter);
   app.route('/api/git', createGitRouter(workspaces));
+  app.route('/api/nodes', createNodeRouter(db, nodes));
 
   // Restore persisted terminals
   const persistedTerminals = loadPersistedTerminals(db, decks);

@@ -38,6 +38,7 @@ export const MAX_CONCURRENT_AGENTS = Number(process.env.MAX_CONCURRENT_AGENTS ||
 export const MAX_AGENT_COST_USD = Number(process.env.MAX_AGENT_COST_USD || 5);
 export const MAX_AGENT_MESSAGES = Number(process.env.MAX_AGENT_MESSAGES || 500);
 export const MAX_AGENT_PROMPT_LENGTH = Number(process.env.MAX_AGENT_PROMPT_LENGTH || 10000);
+export const APP_VERSION = '1.0.0';
 
 // In packaged app: server is at app.asar.unpacked/server/, web is at app.asar.unpacked/web/dist/
 // In development: server is at apps/server/dist/, web is at apps/web/dist/

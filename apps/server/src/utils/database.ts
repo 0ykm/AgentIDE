@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import type { Workspace, Deck, DeckGroup, AgentSessionData } from '../types.js';
@@ -9,6 +10,16 @@ export type PersistedTerminal = {
   title: string;
   command: string | null;
   buffer: string;
+  createdAt: string;
+};
+
+export type PersistedNode = {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  authUser: string | null;
+  authPasswordEnc: string | null;
   createdAt: string;
 };
 
@@ -91,6 +102,26 @@ export function initializeDatabase(db: DatabaseSync): void {
       max_cost_usd REAL,
       duration_ms INTEGER,
       error TEXT,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS node_identity (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT 'Local',
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS nodes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL,
+      auth_user TEXT,
+      auth_password_enc TEXT,
       created_at TEXT NOT NULL
     );
   `);
@@ -327,4 +358,81 @@ export function loadAgentSessions(db: DatabaseSync): AgentSessionData[] {
 
 export function deleteAgentSession(db: DatabaseSync, id: string): void {
   db.prepare('DELETE FROM agent_sessions WHERE id = ?').run(id);
+}
+
+// Node identity and remote node persistence functions
+
+export function loadNodeIdentity(db: DatabaseSync): { id: string; name: string } {
+  const row = db.prepare('SELECT id, name FROM node_identity LIMIT 1').get();
+  if (row) {
+    return { id: String(row.id), name: String(row.name) };
+  }
+  // Create new identity
+  const id = crypto.randomUUID();
+  const name = 'Local';
+  const createdAt = new Date().toISOString();
+  db.prepare('INSERT INTO node_identity (id, name, created_at) VALUES (?, ?, ?)').run(id, name, createdAt);
+  return { id, name };
+}
+
+export function updateNodeName(db: DatabaseSync, id: string, name: string): void {
+  db.prepare('UPDATE node_identity SET name = ? WHERE id = ?').run(name, id);
+}
+
+export function loadNodes(db: DatabaseSync): Map<string, PersistedNode> {
+  const nodes = new Map<string, PersistedNode>();
+  const rows = db.prepare('SELECT id, name, host, port, auth_user, auth_password_enc, created_at FROM nodes ORDER BY created_at ASC').all();
+  rows.forEach((row) => {
+    const id = String(row.id);
+    nodes.set(id, {
+      id,
+      name: String(row.name),
+      host: String(row.host),
+      port: Number(row.port),
+      authUser: row.auth_user ? String(row.auth_user) : null,
+      authPasswordEnc: row.auth_password_enc ? String(row.auth_password_enc) : null,
+      createdAt: String(row.created_at)
+    });
+  });
+  return nodes;
+}
+
+export function saveNode(db: DatabaseSync, node: PersistedNode): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO nodes (id, name, host, port, auth_user, auth_password_enc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(node.id, node.name, node.host, node.port, node.authUser, node.authPasswordEnc, node.createdAt);
+}
+
+export function updateNode(db: DatabaseSync, id: string, updates: Partial<Pick<PersistedNode, 'name' | 'host' | 'port' | 'authUser' | 'authPasswordEnc'>>): void {
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+
+  if (updates.name !== undefined) {
+    fields.push('name = ?');
+    values.push(updates.name);
+  }
+  if (updates.host !== undefined) {
+    fields.push('host = ?');
+    values.push(updates.host);
+  }
+  if (updates.port !== undefined) {
+    fields.push('port = ?');
+    values.push(updates.port);
+  }
+  if (updates.authUser !== undefined) {
+    fields.push('auth_user = ?');
+    values.push(updates.authUser);
+  }
+  if (updates.authPasswordEnc !== undefined) {
+    fields.push('auth_password_enc = ?');
+    values.push(updates.authPasswordEnc);
+  }
+
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE nodes SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteNode(db: DatabaseSync, id: string): void {
+  db.prepare('DELETE FROM nodes WHERE id = ?').run(id);
 }
