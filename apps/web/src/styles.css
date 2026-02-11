@@ -2445,6 +2445,25 @@ textarea {
   color: var(--ink);
   max-width: min(400px, calc(100vw - 40px));
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.status-float-in {
+  animation: status-slide-in 0.3s ease-out forwards;
+}
+
+.status-float-out {
+  animation: status-fade-out 0.4s ease-in forwards;
+}
+
+@keyframes status-slide-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes status-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
 }
 
 /* ========================================

@@ -23,8 +23,6 @@ import { useAgents } from './hooks/useAgents';
 import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
-  SAVED_MESSAGE_TIMEOUT,
-  MESSAGE_SAVED,
   MESSAGE_WORKSPACE_REQUIRED,
   MESSAGE_SELECT_WORKSPACE,
   MESSAGE_SELECT_DECK,
@@ -189,11 +187,7 @@ export default function App() {
     window.history.replaceState(null, '', nextUrl);
   }, [view, editorWorkspaceId, activeDeckIds, workspaceMode]);
 
-  useEffect(() => {
-    if (statusMessage !== MESSAGE_SAVED) return;
-    const timer = setTimeout(() => setStatusMessage(''), SAVED_MESSAGE_TIMEOUT);
-    return () => clearTimeout(timer);
-  }, [statusMessage]);
+  const clearStatusMessage = useCallback(() => setStatusMessage(''), []);
 
   useEffect(() => {
     if (workspaceMode === 'editor' && !editorWorkspaceId) {
@@ -617,7 +611,7 @@ export default function App() {
         {view === 'terminal' && terminalView}
         {view === 'agent' && agentView}
       </main>
-      <StatusMessage message={statusMessage} />
+      <StatusMessage message={statusMessage} onDismiss={clearStatusMessage} />
       <WorkspaceModal
         isOpen={isWorkspaceModalOpen}
         defaultRoot={defaultRoot}
