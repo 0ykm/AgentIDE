@@ -118,6 +118,19 @@ export class NodeApiClient {
     });
   }
 
+  updateWorkspace(id: string, updates: { name?: string; path?: string }): Promise<Workspace> {
+    return this.request<Workspace>(`/api/workspaces/${id}`, {
+      method: HTTP_METHOD_PATCH,
+      headers: { 'Content-Type': CONTENT_TYPE_JSON },
+      body: JSON.stringify(updates)
+    });
+  }
+
+  previewFiles(rootPath: string, subpath = ''): Promise<FileSystemEntry[]> {
+    const query = new URLSearchParams({ path: rootPath, subpath });
+    return this.request<FileSystemEntry[]>(`/api/preview?${query.toString()}`);
+  }
+
   // ===== Deck API =====
 
   listDecks(): Promise<Deck[]> {

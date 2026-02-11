@@ -27,8 +27,8 @@ import { useDeckGroups } from './hooks/useDeckGroups';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
 import { useAgents } from './hooks/useAgents';
-import { useNodes, useRemoteDecks, useActiveDeckContext } from './remote-nodes';
-import type { NodeDeck } from './remote-nodes';
+import { useNodes, useRemoteDecks, useRemoteWorkspaces, useRemoteFileOperations, useRemoteGitState, useActiveDeckContext } from './remote-nodes';
+import type { NodeDeck, NodeWorkspace } from './remote-nodes';
 import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace, Deck, DeckGroup, TerminalLayout } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
@@ -66,6 +66,7 @@ export default function App() {
   const [editingDeckGroup, setEditingDeckGroup] = useState<DeckGroup | null>(null);
   const [deletingDeckGroup, setDeletingDeckGroup] = useState<DeckGroup | null>(null);
   const [groupContextMenu, setGroupContextMenu] = useState<{ group: DeckGroup; x: number; y: number } | null>(null);
+  const [deckModalNodeId, setDeckModalNodeId] = useState<string>('');
 
   const { workspaceStates, setWorkspaceStates, updateWorkspaceState, initializeWorkspaceStates } =
     useWorkspaceState();
@@ -97,12 +98,15 @@ export default function App() {
 
   // Remote nodes
   const { nodes, localNode, onlineRemoteNodes, getNodeClient, addNode, removeNode, updateNode, testConnection, refreshAllStatuses } = useNodes();
-  const { remoteDecks, refreshRemoteDecks } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
+  const { remoteDecks, refreshRemoteDecks, createRemoteDeck } = useRemoteDecks(onlineRemoteNodes, getNodeClient);
+  const { remoteWorkspaces, refreshRemoteWorkspaces, createRemoteWorkspace, deleteRemoteWorkspace, updateRemoteWorkspace } =
+    useRemoteWorkspaces(onlineRemoteNodes, getNodeClient);
 
-  // Refresh remote decks when online nodes change
+  // Refresh remote decks & workspaces when online nodes change
   useEffect(() => {
     if (onlineRemoteNodes.length > 0) {
       refreshRemoteDecks();
+      refreshRemoteWorkspaces();
     }
   }, [onlineRemoteNodes.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -121,10 +125,43 @@ export default function App() {
   const defaultWorkspaceState = useMemo(() => createEmptyWorkspaceState(), []);
   const defaultDeckState = useMemo(() => createEmptyDeckState(), []);
   const activeWorkspace =
-    workspaces.find((workspace) => workspace.id === editorWorkspaceId) || null;
+    workspaces.find((workspace) => workspace.id === editorWorkspaceId) ||
+    remoteWorkspaces.find((ws) => ws.id === editorWorkspaceId) ||
+    null;
+
+  const activeRemoteWorkspace = activeWorkspace && 'nodeId' in activeWorkspace
+    ? (activeWorkspace as NodeWorkspace)
+    : null;
+  const isRemoteWorkspace = activeRemoteWorkspace !== null;
+  const activeNodeClient = activeRemoteWorkspace
+    ? getNodeClient(activeRemoteWorkspace.nodeId)
+    : null;
+
   const activeWorkspaceState = editorWorkspaceId
     ? workspaceStates[editorWorkspaceId] || defaultWorkspaceState
     : defaultWorkspaceState;
+
+  const offlineNodeIds = useMemo(
+    () => new Set(nodes.filter(n => n.status !== 'online' && !n.isLocal).map(n => n.id)),
+    [nodes]
+  );
+
+  // Local file operations
+  const localFileOps = useFileOperations({
+    editorWorkspaceId: isRemoteWorkspace ? null : editorWorkspaceId,
+    activeWorkspaceState,
+    updateWorkspaceState,
+    setStatusMessage
+  });
+
+  // Remote file operations
+  const remoteFileOps = useRemoteFileOperations({
+    nodeClient: activeNodeClient,
+    workspaceId: isRemoteWorkspace ? editorWorkspaceId : null,
+    workspaceState: activeWorkspaceState,
+    updateWorkspaceState,
+    setStatusMessage
+  });
 
   const {
     savingFileId,
@@ -138,12 +175,19 @@ export default function App() {
     handleCreateDirectory,
     handleDeleteFile,
     handleDeleteDirectory
-  } = useFileOperations({
-    editorWorkspaceId,
-    activeWorkspaceState,
-    updateWorkspaceState,
+  } = isRemoteWorkspace ? remoteFileOps : localFileOps;
+
+  // Local Git
+  const localGitOps = useGitState(
+    isRemoteWorkspace ? null : editorWorkspaceId, setStatusMessage
+  );
+
+  // Remote Git
+  const remoteGitOps = useRemoteGitState(
+    activeNodeClient,
+    isRemoteWorkspace ? editorWorkspaceId : null,
     setStatusMessage
-  });
+  );
 
   const {
     gitState,
@@ -163,7 +207,7 @@ export default function App() {
     handleCheckoutBranch,
     handleCreateBranch,
     handleLoadLogs
-  } = useGitState(editorWorkspaceId, setStatusMessage);
+  } = isRemoteWorkspace ? remoteGitOps : localGitOps;
 
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -256,12 +300,17 @@ export default function App() {
   }, [workspaceMode, editorWorkspaceId, handleRefreshTree, refreshGitStatus]);
 
   const handleOpenDeckModal = useCallback(() => {
-    if (workspaces.length === 0) {
+    if (workspaces.length === 0 && remoteWorkspaces.length === 0) {
       setStatusMessage(MESSAGE_WORKSPACE_REQUIRED);
       return;
     }
     setIsDeckModalOpen(true);
-  }, [workspaces.length]);
+  }, [workspaces.length, remoteWorkspaces.length]);
+
+  const deckModalRemoteWorkspaces = useMemo(
+    () => deckModalNodeId ? remoteWorkspaces.filter(ws => ws.nodeId === deckModalNodeId) : undefined,
+    [deckModalNodeId, remoteWorkspaces]
+  );
 
   const handleSubmitDeck = useCallback(
     async (name: string, workspaceId: string) => {
@@ -269,12 +318,16 @@ export default function App() {
         setStatusMessage(MESSAGE_SELECT_WORKSPACE);
         return;
       }
-      const deck = await handleCreateDeck(name, workspaceId);
-      if (deck) {
-        setIsDeckModalOpen(false);
+      if (deckModalNodeId) {
+        const deck = await createRemoteDeck(deckModalNodeId, name, workspaceId);
+        if (deck) await refreshRemoteDecks();
+      } else {
+        await handleCreateDeck(name, workspaceId);
       }
+      setIsDeckModalOpen(false);
+      setDeckModalNodeId('');
     },
-    [handleCreateDeck]
+    [deckModalNodeId, createRemoteDeck, refreshRemoteDecks, handleCreateDeck]
   );
 
   const handleToggleTheme = useCallback(() => {
@@ -311,8 +364,12 @@ export default function App() {
     (workspaceId: string) => {
       setEditorWorkspaceId(workspaceId);
       setWorkspaceMode('editor');
+      setWorkspaceStates((prev) => {
+        if (prev[workspaceId]) return prev;
+        return { ...prev, [workspaceId]: createEmptyWorkspaceState() };
+      });
     },
-    [setEditorWorkspaceId]
+    [setEditorWorkspaceId, setWorkspaceStates]
   );
 
   const handleCloseWorkspaceEditor = useCallback(() => {
@@ -324,13 +381,21 @@ export default function App() {
   }, []);
 
   const handleSubmitWorkspace = useCallback(
-    async (path: string) => {
-      const created = await handleCreateWorkspace(path);
-      if (created) {
-        setIsWorkspaceModalOpen(false);
+    async (path: string, nodeId?: string) => {
+      if (nodeId) {
+        const created = await createRemoteWorkspace(nodeId, path);
+        if (created) {
+          await refreshRemoteWorkspaces();
+          setIsWorkspaceModalOpen(false);
+        }
+      } else {
+        const created = await handleCreateWorkspace(path);
+        if (created) {
+          setIsWorkspaceModalOpen(false);
+        }
       }
     },
-    [handleCreateWorkspace]
+    [handleCreateWorkspace, createRemoteWorkspace, refreshRemoteWorkspaces]
   );
 
   const handleOpenEditWorkspace = useCallback((workspace: Workspace) => {
@@ -339,12 +404,18 @@ export default function App() {
 
   const handleSubmitEditWorkspace = useCallback(
     async (id: string, updates: { name?: string; path?: string }) => {
-      const updated = await handleUpdateWorkspace(id, updates);
-      if (updated) {
-        setEditingWorkspace(null);
+      const remoteWs = remoteWorkspaces.find(ws => ws.id === id);
+      if (remoteWs) {
+        const result = await updateRemoteWorkspace(remoteWs.nodeId, id, updates);
+        if (result) setEditingWorkspace(null);
+      } else {
+        const updated = await handleUpdateWorkspace(id, updates);
+        if (updated) {
+          setEditingWorkspace(null);
+        }
       }
     },
-    [handleUpdateWorkspace]
+    [handleUpdateWorkspace, remoteWorkspaces, updateRemoteWorkspace]
   );
 
   const handleOpenDeleteWorkspace = useCallback((workspace: Workspace) => {
@@ -353,12 +424,18 @@ export default function App() {
 
   const handleConfirmDeleteWorkspace = useCallback(async () => {
     if (!deletingWorkspace) return;
-    const success = await handleDeleteWorkspace(deletingWorkspace.id);
-    if (success) {
-      removeDecksForWorkspace(deletingWorkspace.id);
+    const remoteWs = remoteWorkspaces.find(ws => ws.id === deletingWorkspace.id);
+    if (remoteWs) {
+      await deleteRemoteWorkspace(remoteWs.nodeId, deletingWorkspace.id);
       setDeletingWorkspace(null);
+    } else {
+      const success = await handleDeleteWorkspace(deletingWorkspace.id);
+      if (success) {
+        removeDecksForWorkspace(deletingWorkspace.id);
+        setDeletingWorkspace(null);
+      }
     }
-  }, [deletingWorkspace, handleDeleteWorkspace, removeDecksForWorkspace]);
+  }, [deletingWorkspace, handleDeleteWorkspace, removeDecksForWorkspace, remoteWorkspaces, deleteRemoteWorkspace]);
 
   const handleDeckTabContextMenu = useCallback(
     (e: React.MouseEvent, deck: Deck) => {
@@ -650,6 +727,8 @@ export default function App() {
         </button>
         <WorkspaceList
           workspaces={workspaces}
+          remoteWorkspaces={remoteWorkspaces}
+          offlineNodeIds={offlineNodeIds}
           selectedWorkspaceId={editorWorkspaceId}
           onSelect={handleSelectWorkspace}
           onEdit={handleOpenEditWorkspace}
@@ -856,6 +935,8 @@ export default function App() {
       <WorkspaceModal
         isOpen={isWorkspaceModalOpen}
         defaultRoot={defaultRoot}
+        nodes={[localNode, ...nodes]}
+        getNodeClient={getNodeClient}
         onSubmit={handleSubmitWorkspace}
         onClose={() => setIsWorkspaceModalOpen(false)}
       />
@@ -863,8 +944,10 @@ export default function App() {
         isOpen={isDeckModalOpen}
         workspaces={workspaces}
         nodes={[localNode, ...nodes]}
+        remoteWorkspaces={deckModalRemoteWorkspaces}
+        onNodeChange={setDeckModalNodeId}
         onSubmit={handleSubmitDeck}
-        onClose={() => setIsDeckModalOpen(false)}
+        onClose={() => { setIsDeckModalOpen(false); setDeckModalNodeId(''); }}
       />
       <SettingsModal
         isOpen={isSettingsModalOpen}

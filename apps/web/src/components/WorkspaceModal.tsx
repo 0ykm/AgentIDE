@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FileTree } from './FileTree';
 import type { FileTreeNode } from '../types';
+import type { RemoteNodeWithStatus } from '@deck-ide/shared/types';
+import type { NodeApiClient } from '../remote-nodes/NodeApiClient';
 import { previewFiles } from '../api';
 import { getErrorMessage, getParentPath, joinPath, toTreeNodes } from '../utils';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
   defaultRoot: string;
-  onSubmit: (path: string) => Promise<void>;
+  nodes?: RemoteNodeWithStatus[];
+  getNodeClient?: (nodeId: string) => NodeApiClient | null;
+  onSubmit: (path: string, nodeId?: string) => Promise<void>;
   onClose: () => void;
 }
 
 export const WorkspaceModal = ({
   isOpen,
   defaultRoot,
+  nodes,
+  getNodeClient,
   onSubmit,
   onClose
 }: WorkspaceModalProps) => {
@@ -21,6 +27,7 @@ export const WorkspaceModal = ({
   const [previewTree, setPreviewTree] = useState<FileTreeNode[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
 
   const previewRoot = workspacePathDraft.trim() || defaultRoot;
   const canPreviewBack = useMemo(() => {
@@ -28,17 +35,32 @@ export const WorkspaceModal = ({
     return getParentPath(previewRoot) !== previewRoot;
   }, [previewRoot]);
 
+  const isRemoteNode = selectedNodeId !== '';
+
+  const loadPreview = (root: string) => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+
+    const fetchPromise = isRemoteNode && getNodeClient
+      ? (() => {
+          const client = getNodeClient(selectedNodeId);
+          return client ? client.previewFiles(root) : Promise.reject(new Error('Node client not available'));
+        })()
+      : previewFiles(root, '');
+
+    return fetchPromise;
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setPreviewTree([]);
       setPreviewLoading(false);
       setPreviewError(null);
+      setSelectedNodeId('');
       return;
     }
     let alive = true;
-    setPreviewLoading(true);
-    setPreviewError(null);
-    previewFiles(previewRoot, '')
+    loadPreview(previewRoot)
       .then((entries) => {
         if (!alive) return;
         setPreviewTree(toTreeNodes(entries));
@@ -52,7 +74,7 @@ export const WorkspaceModal = ({
     return () => {
       alive = false;
     };
-  }, [isOpen, previewRoot]);
+  }, [isOpen, previewRoot, selectedNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isOpen) return;
@@ -62,11 +84,16 @@ export const WorkspaceModal = ({
     }
   }, [defaultRoot, isOpen, workspacePathDraft]);
 
+  // Reset path when switching nodes
+  useEffect(() => {
+    if (!isOpen) return;
+    setWorkspacePathDraft('');
+    setPreviewTree([]);
+  }, [selectedNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handlePreviewRefresh = () => {
     if (!isOpen) return;
-    setPreviewLoading(true);
-    setPreviewError(null);
-    previewFiles(previewRoot, '')
+    loadPreview(previewRoot)
       .then((entries) => {
         setPreviewTree(toTreeNodes(entries));
         setPreviewLoading(false);
@@ -93,7 +120,7 @@ export const WorkspaceModal = ({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await onSubmit(workspacePathDraft);
+    await onSubmit(workspacePathDraft, selectedNodeId || undefined);
     setWorkspacePathDraft('');
   };
 
@@ -105,12 +132,28 @@ export const WorkspaceModal = ({
         <div className="modal-title">
           {'\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9\u8ffd\u52a0'}
         </div>
+        {nodes && nodes.length > 0 && (
+          <label className="field">
+            <span>{'\u30ce\u30fc\u30c9'}</span>
+            <select
+              value={selectedNodeId}
+              onChange={(event) => setSelectedNodeId(event.target.value)}
+            >
+              <option value="">ローカル</option>
+              {nodes.filter(n => !n.isLocal && n.status === 'online').map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name} ({node.host}:{node.port})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field">
           <span>{'\u30d1\u30b9'}</span>
           <input
             type="text"
             value={workspacePathDraft}
-            placeholder={defaultRoot || ''}
+            placeholder={isRemoteNode ? '/path/to/workspace' : (defaultRoot || '')}
             onChange={(event) => setWorkspacePathDraft(event.target.value)}
           />
         </label>

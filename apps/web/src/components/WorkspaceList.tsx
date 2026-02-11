@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Workspace } from '../types';
+import type { NodeWorkspace } from '../remote-nodes';
 
 interface WorkspaceListProps {
   workspaces: Workspace[];
+  remoteWorkspaces?: NodeWorkspace[];
+  offlineNodeIds?: Set<string>;
   selectedWorkspaceId: string | null;
   onSelect: (workspaceId: string) => void;
   onEdit: (workspace: Workspace) => void;
@@ -93,11 +96,29 @@ function WorkspaceItemMenu({
 
 export function WorkspaceList({
   workspaces,
+  remoteWorkspaces,
+  offlineNodeIds,
   selectedWorkspaceId,
   onSelect,
   onEdit,
   onDelete
 }: WorkspaceListProps) {
+  const nodeGroups = useMemo(() => {
+    if (!remoteWorkspaces?.length) return [];
+    const grouped = new Map<string, { nodeName: string; workspaces: NodeWorkspace[] }>();
+    for (const ws of remoteWorkspaces) {
+      const group = grouped.get(ws.nodeId) || { nodeName: ws.nodeName, workspaces: [] };
+      group.workspaces.push(ws);
+      grouped.set(ws.nodeId, group);
+    }
+    return Array.from(grouped.entries()).map(([nodeId, { nodeName, workspaces: wsList }]) => ({
+      nodeId,
+      nodeName,
+      workspaces: wsList,
+      isOffline: offlineNodeIds?.has(nodeId) ?? false
+    }));
+  }, [remoteWorkspaces, offlineNodeIds]);
+
   return (
     <section className="panel workspace-panel">
       <div className="panel-header">
@@ -106,31 +127,80 @@ export function WorkspaceList({
         </div>
       </div>
       <div className="panel-body">
-        {workspaces.length === 0 ? (
+        {/* Local section */}
+        {workspaces.length === 0 && nodeGroups.length === 0 ? (
           <div className="empty-state">{LABEL_EMPTY}</div>
         ) : (
-          workspaces.map((workspace) => (
-            <div
-              key={workspace.id}
-              className={`workspace-item ${
-                workspace.id === selectedWorkspaceId ? 'is-active' : ''
-              }`}
-            >
-              <button
-                type="button"
-                className="workspace-main"
-                onClick={() => onSelect(workspace.id)}
+          <>
+            {nodeGroups.length > 0 && workspaces.length > 0 && (
+              <div className="workspace-section-header">Local</div>
+            )}
+            {workspaces.map((workspace) => (
+              <div
+                key={workspace.id}
+                className={`workspace-item ${
+                  workspace.id === selectedWorkspaceId ? 'is-active' : ''
+                }`}
               >
-                <div className="workspace-name">{workspace.name}</div>
-                <div className="workspace-path">{workspace.path}</div>
-              </button>
-              <WorkspaceItemMenu
-                workspace={workspace}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            </div>
-          ))
+                <button
+                  type="button"
+                  className="workspace-main"
+                  onClick={() => onSelect(workspace.id)}
+                >
+                  <div className="workspace-name">{workspace.name}</div>
+                  <div className="workspace-path">{workspace.path}</div>
+                </button>
+                <WorkspaceItemMenu
+                  workspace={workspace}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              </div>
+            ))}
+
+            {/* Remote sections (grouped by node) */}
+            {nodeGroups.map(({ nodeId, nodeName, workspaces: nodeWsList, isOffline }) => (
+              <div key={nodeId} className={`workspace-section ${isOffline ? 'offline' : ''}`}>
+                <div className="workspace-section-header">
+                  <span
+                    className="node-status-dot"
+                    style={{ background: isOffline ? '#888' : '#4ec9b0' }}
+                  />
+                  {nodeName}
+                  {isOffline && <span className="offline-badge">オフライン</span>}
+                </div>
+                {nodeWsList.length === 0 ? (
+                  <div className="empty-state">WSなし</div>
+                ) : (
+                  nodeWsList.map((ws) => (
+                    <div
+                      key={ws.id}
+                      className={`workspace-item ${
+                        ws.id === selectedWorkspaceId ? 'is-active' : ''
+                      } ${isOffline ? 'is-disabled' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="workspace-main"
+                        onClick={() => !isOffline && onSelect(ws.id)}
+                        disabled={isOffline}
+                      >
+                        <div className="workspace-name">{ws.name}</div>
+                        <div className="workspace-path">{ws.path}</div>
+                      </button>
+                      {!isOffline && (
+                        <WorkspaceItemMenu
+                          workspace={ws}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                        />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            ))}
+          </>
         )}
       </div>
     </section>
