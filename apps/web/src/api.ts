@@ -28,6 +28,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 const CONTENT_TYPE_JSON = 'application/json';
 const HTTP_METHOD_POST = 'POST';
 const HTTP_METHOD_PUT = 'PUT';
+const HTTP_METHOD_PATCH = 'PATCH';
 const HTTP_METHOD_DELETE = 'DELETE';
 
 /**
@@ -67,6 +68,29 @@ export function createWorkspace(path: string): Promise<Workspace> {
     method: HTTP_METHOD_POST,
     headers: { 'Content-Type': CONTENT_TYPE_JSON },
     body: JSON.stringify({ path })
+  });
+}
+
+/**
+ * Updates a workspace
+ */
+export function updateWorkspace(
+  id: string,
+  updates: { name?: string; path?: string }
+): Promise<Workspace> {
+  return request<Workspace>(`/api/workspaces/${id}`, {
+    method: HTTP_METHOD_PATCH,
+    headers: { 'Content-Type': CONTENT_TYPE_JSON },
+    body: JSON.stringify(updates)
+  });
+}
+
+/**
+ * Deletes a workspace
+ */
+export function deleteWorkspace(id: string): Promise<void> {
+  return request<void>(`/api/workspaces/${id}`, {
+    method: HTTP_METHOD_DELETE
   });
 }
 

@@ -33,12 +33,21 @@ function validateName(name: string | undefined): string | undefined {
 export function createWorkspaceRouter(
   db: DatabaseSync,
   workspaces: Map<string, Workspace>,
-  workspacePathIndex: Map<string, string>
+  workspacePathIndex: Map<string, string>,
+  decks: Map<string, import('../types.js').Deck>
 ) {
   const router = new Hono();
 
   const insertWorkspace = db.prepare(
     'INSERT INTO workspaces (id, name, path, normalized_path, created_at) VALUES (?, ?, ?, ?, ?)'
+  );
+  const updateWorkspaceStmt = db.prepare(
+    'UPDATE workspaces SET name = ?, path = ?, normalized_path = ? WHERE id = ?'
+  );
+  const deleteWorkspaceStmt = db.prepare('DELETE FROM workspaces WHERE id = ?');
+  const deleteDecksForWorkspace = db.prepare('DELETE FROM decks WHERE workspace_id = ?');
+  const deleteTerminalsForWorkspace = db.prepare(
+    'DELETE FROM terminals WHERE deck_id IN (SELECT id FROM decks WHERE workspace_id = ?)'
   );
 
   function createWorkspace(inputPath: string, name?: string): Workspace {
@@ -78,6 +87,81 @@ export function createWorkspaceRouter(
       }
       const workspace = createWorkspace(body.path, body.name);
       return c.json(workspace, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  router.patch('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const workspace = workspaces.get(id);
+      if (!workspace) {
+        throw createHttpError('Workspace not found', 404);
+      }
+      const body = await readJson<{ name?: string; path?: string }>(c);
+      const validatedName = validateName(body?.name);
+      const newName = validatedName || workspace.name;
+      let newPath = workspace.path;
+      let newKey = getWorkspaceKey(newPath);
+
+      if (body?.path && body.path.trim()) {
+        const resolvedPath = normalizeWorkspacePath(body.path.trim());
+        const candidateKey = getWorkspaceKey(resolvedPath);
+        const existingId = workspacePathIndex.get(candidateKey);
+        if (existingId && existingId !== id) {
+          throw createHttpError('Workspace path already exists', 409);
+        }
+        newPath = resolvedPath;
+        newKey = candidateKey;
+      }
+
+      if (newName === workspace.name && newPath === workspace.path) {
+        return c.json(workspace);
+      }
+
+      // Update path index if path changed
+      if (newPath !== workspace.path) {
+        const oldKey = getWorkspaceKey(workspace.path);
+        workspacePathIndex.delete(oldKey);
+        workspacePathIndex.set(newKey, id);
+      }
+
+      const updated: Workspace = { ...workspace, name: newName, path: newPath };
+      workspaces.set(id, updated);
+      updateWorkspaceStmt.run(newName, newPath, newKey, id);
+      return c.json(updated);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  router.delete('/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const workspace = workspaces.get(id);
+      if (!workspace) {
+        throw createHttpError('Workspace not found', 404);
+      }
+
+      // Cascade delete: terminals → decks → workspace
+      deleteTerminalsForWorkspace.run(id);
+      deleteDecksForWorkspace.run(id);
+      deleteWorkspaceStmt.run(id);
+
+      // Clean up memory maps
+      const key = getWorkspaceKey(workspace.path);
+      workspacePathIndex.delete(key);
+      workspaces.delete(id);
+
+      // Clean up decks in memory
+      for (const [deckId, deck] of decks) {
+        if (deck.workspaceId === id) {
+          decks.delete(deckId);
+        }
+      }
+
+      return c.body(null, 204);
     } catch (error) {
       return handleError(c, error);
     }

@@ -157,12 +157,32 @@ export const useDecks = ({
     [updateDeckState, setStatusMessage]
   );
 
+  const removeDecksForWorkspace = useCallback(
+    (workspaceId: string) => {
+      const deckIdsToRemove = new Set(
+        decks.filter((d) => d.workspaceId === workspaceId).map((d) => d.id)
+      );
+      if (deckIdsToRemove.size === 0) return;
+      setDecks((prev) => prev.filter((d) => !deckIdsToRemove.has(d.id)));
+      setActiveDeckIds((prev) => prev.filter((id) => !deckIdsToRemove.has(id)));
+      setDeckStates((prev) => {
+        const next = { ...prev };
+        for (const id of deckIdsToRemove) {
+          delete next[id];
+        }
+        return next;
+      });
+    },
+    [decks, setDeckStates]
+  );
+
   return {
     decks,
     activeDeckIds,
     setActiveDeckIds,
     handleCreateDeck,
     handleCreateTerminal,
-    handleDeleteTerminal
+    handleDeleteTerminal,
+    removeDecksForWorkspace
   };
 };

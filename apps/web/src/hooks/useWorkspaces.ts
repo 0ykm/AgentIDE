@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Workspace } from '../types';
-import { listWorkspaces, createWorkspace as apiCreateWorkspace } from '../api';
+import {
+  listWorkspaces,
+  createWorkspace as apiCreateWorkspace,
+  updateWorkspace as apiUpdateWorkspace,
+  deleteWorkspace as apiDeleteWorkspace
+} from '../api';
 import { getErrorMessage, normalizeWorkspacePath, createEmptyWorkspaceState } from '../utils';
 
 interface UseWorkspacesProps {
@@ -84,10 +89,52 @@ export const useWorkspaces = ({
     [workspaces, defaultRoot, setStatusMessage, setWorkspaceStates]
   );
 
+  const handleUpdateWorkspace = useCallback(
+    async (id: string, updates: { name?: string; path?: string }) => {
+      try {
+        const updated = await apiUpdateWorkspace(id, updates);
+        setWorkspaces((prev) =>
+          prev.map((w) => (w.id === id ? updated : w))
+        );
+        return updated;
+      } catch (error: unknown) {
+        setStatusMessage(
+          `ワークスペースを更新できませんでした: ${getErrorMessage(error)}`
+        );
+        return null;
+      }
+    },
+    [setStatusMessage]
+  );
+
+  const handleDeleteWorkspace = useCallback(
+    async (id: string) => {
+      try {
+        await apiDeleteWorkspace(id);
+        setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+        setEditorWorkspaceId((prev) => (prev === id ? null : prev));
+        setWorkspaceStates((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        return true;
+      } catch (error: unknown) {
+        setStatusMessage(
+          `ワークスペースを削除できませんでした: ${getErrorMessage(error)}`
+        );
+        return false;
+      }
+    },
+    [setStatusMessage, setWorkspaceStates]
+  );
+
   return {
     workspaces,
     editorWorkspaceId,
     setEditorWorkspaceId,
-    handleCreateWorkspace
+    handleCreateWorkspace,
+    handleUpdateWorkspace,
+    handleDeleteWorkspace
   };
 };

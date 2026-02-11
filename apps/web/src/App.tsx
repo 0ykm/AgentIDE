@@ -12,6 +12,8 @@ import { AgentPane } from './components/AgentPane';
 import { AgentModal } from './components/AgentModal';
 import { WorkspaceList } from './components/WorkspaceList';
 import { WorkspaceModal } from './components/WorkspaceModal';
+import { WorkspaceEditModal } from './components/WorkspaceEditModal';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { getConfig, getWsBase } from './api';
 import { useWorkspaceState } from './hooks/useWorkspaceState';
 import { useDeckState } from './hooks/useDeckState';
@@ -20,7 +22,7 @@ import { useDecks } from './hooks/useDecks';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useGitState } from './hooks/useGitState';
 import { useAgents } from './hooks/useAgents';
-import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider } from './types';
+import type { AppView, WorkspaceMode, SidebarPanel, AgentProvider, Workspace } from './types';
 import {
   DEFAULT_ROOT_FALLBACK,
   MESSAGE_WORKSPACE_REQUIRED,
@@ -47,13 +49,15 @@ export default function App() {
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [agentModalProvider, setAgentModalProvider] = useState<AgentProvider>('claude');
   const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>('files');
+  const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
+  const [deletingWorkspace, setDeletingWorkspace] = useState<Workspace | null>(null);
 
   const { workspaceStates, setWorkspaceStates, updateWorkspaceState, initializeWorkspaceStates } =
     useWorkspaceState();
   const { deckStates, setDeckStates, updateDeckState, initializeDeckStates } =
     useDeckState();
 
-  const { workspaces, editorWorkspaceId, setEditorWorkspaceId, handleCreateWorkspace } =
+  const { workspaces, editorWorkspaceId, setEditorWorkspaceId, handleCreateWorkspace, handleUpdateWorkspace, handleDeleteWorkspace } =
     useWorkspaces({
       setStatusMessage,
       defaultRoot,
@@ -61,7 +65,7 @@ export default function App() {
       setWorkspaceStates
     });
 
-  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleCreateTerminal, handleDeleteTerminal } =
+  const { decks, activeDeckIds, setActiveDeckIds, handleCreateDeck, handleCreateTerminal, handleDeleteTerminal, removeDecksForWorkspace } =
     useDecks({
       setStatusMessage,
       initializeDeckStates,
@@ -291,6 +295,33 @@ export default function App() {
     [handleCreateWorkspace]
   );
 
+  const handleOpenEditWorkspace = useCallback((workspace: Workspace) => {
+    setEditingWorkspace(workspace);
+  }, []);
+
+  const handleSubmitEditWorkspace = useCallback(
+    async (id: string, updates: { name?: string; path?: string }) => {
+      const updated = await handleUpdateWorkspace(id, updates);
+      if (updated) {
+        setEditingWorkspace(null);
+      }
+    },
+    [handleUpdateWorkspace]
+  );
+
+  const handleOpenDeleteWorkspace = useCallback((workspace: Workspace) => {
+    setDeletingWorkspace(workspace);
+  }, []);
+
+  const handleConfirmDeleteWorkspace = useCallback(async () => {
+    if (!deletingWorkspace) return;
+    const success = await handleDeleteWorkspace(deletingWorkspace.id);
+    if (success) {
+      removeDecksForWorkspace(deletingWorkspace.id);
+      setDeletingWorkspace(null);
+    }
+  }, [deletingWorkspace, handleDeleteWorkspace, removeDecksForWorkspace]);
+
   const handleNewTerminalForDeck = useCallback((deckId: string) => {
     const deckState = deckStates[deckId] || defaultDeckState;
     handleCreateTerminal(deckId, deckState.terminals.length);
@@ -480,6 +511,8 @@ export default function App() {
           workspaces={workspaces}
           selectedWorkspaceId={editorWorkspaceId}
           onSelect={handleSelectWorkspace}
+          onEdit={handleOpenEditWorkspace}
+          onDelete={handleOpenDeleteWorkspace}
         />
       </div>
       {workspaceEditor}
@@ -638,6 +671,20 @@ export default function App() {
           setIsAgentModalOpen(false);
         }}
         onClose={() => setIsAgentModalOpen(false)}
+      />
+      <WorkspaceEditModal
+        isOpen={editingWorkspace !== null}
+        workspace={editingWorkspace}
+        onSubmit={handleSubmitEditWorkspace}
+        onClose={() => setEditingWorkspace(null)}
+      />
+      <ConfirmDialog
+        isOpen={deletingWorkspace !== null}
+        title="ワークスペース削除"
+        message={`「${deletingWorkspace?.name ?? ''}」を削除しますか？関連するデッキとターミナルも削除されます。`}
+        confirmLabel="削除"
+        onConfirm={handleConfirmDeleteWorkspace}
+        onCancel={() => setDeletingWorkspace(null)}
       />
     </div>
   );

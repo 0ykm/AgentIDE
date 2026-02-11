@@ -1258,6 +1258,7 @@ textarea {
    ======================================== */
 
 .workspace-item {
+  position: relative;
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -1276,10 +1277,12 @@ textarea {
   background: transparent;
   text-align: left;
   padding: 0;
+  padding-right: 32px;
   cursor: pointer;
   width: 100%;
   display: grid;
   gap: 4px;
+  color: inherit;
 }
 
 .workspace-name {
@@ -1291,6 +1294,54 @@ textarea {
   font-size: 12px;
   color: var(--muted);
   font-family: 'JetBrains Mono', monospace;
+}
+
+.workspace-menu-container {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+.workspace-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.1s;
+}
+
+.workspace-item:hover .workspace-menu-btn,
+.workspace-item:focus-within .workspace-menu-btn,
+.workspace-menu-btn:focus {
+  opacity: 1;
+}
+
+.workspace-menu-btn:hover {
+  background: var(--list-hover);
+  color: var(--ink);
+}
+
+.workspace-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 120px;
+  padding: 4px 0;
+  transform: translateX(-100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .workspace-panel .panel-body {
