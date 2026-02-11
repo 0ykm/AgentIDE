@@ -1,0 +1,98 @@
+#:schema https://mise.jdx.dev/schema/mise.json
+
+# ==============================================================================
+# Deck IDE - mise configuration
+# ==============================================================================
+# 使い方:
+#   mise install        - ツールのインストール
+#   mise run setup      - プロジェクトの初期セットアップ
+#   mise run dev        - 開発サーバー起動 (server + web)
+#   mise run build      - プロダクションビルド
+#   mise tasks          - 利用可能なタスクの一覧
+# ==============================================================================
+
+[tools]
+node = "22"
+
+[env]
+NODE_ENV = "development"
+
+# === セットアップ ===
+
+[tasks.setup]
+description = "プロジェクトの初期セットアップ (npm install + shared ビルド)"
+run = [
+    "npm install",
+    "npm --workspace packages/shared run build",
+]
+
+# === shared パッケージ ===
+
+[tasks."build:shared"]
+description = "packages/shared をビルド"
+run = "npm --workspace packages/shared run build"
+sources = ["packages/shared/*.ts", "packages/shared/tsconfig.json"]
+outputs = ["packages/shared/dist/**/*"]
+
+# === 開発サーバー ===
+
+[tasks."dev:server"]
+description = "バックエンドサーバーを起動 (port 8787)"
+depends = ["build:shared"]
+run = "npm --workspace apps/server run dev"
+
+[tasks."dev:web"]
+description = "フロントエンド開発サーバーを起動 (port 5173)"
+depends = ["build:shared"]
+run = "npm --workspace apps/web run dev"
+
+[tasks.dev]
+description = "開発サーバーを起動 (server + web 並列)"
+depends = ["dev:server", "dev:web"]
+
+# === ビルド ===
+
+[tasks."build:server"]
+description = "サーバーをビルド"
+depends = ["build:shared"]
+run = "npm --workspace apps/server run build"
+
+[tasks."build:web"]
+description = "Web フロントエンドをビルド"
+depends = ["build:shared"]
+run = "npm --workspace apps/web run build"
+
+[tasks.build]
+description = "Web + Server をビルド"
+depends = ["build:server", "build:web"]
+
+[tasks."build:desktop"]
+description = "デスクトップアプリをビルド"
+depends = ["build:web", "build:server"]
+run = "npm --workspace apps/desktop run build"
+
+[tasks."build:desktop:win"]
+description = "デスクトップアプリをビルド (Windows)"
+depends = ["build:web", "build:server"]
+run = "npm --workspace apps/desktop run build:win"
+
+[tasks."build:desktop:mac"]
+description = "デスクトップアプリをビルド (macOS)"
+depends = ["build:web", "build:server"]
+run = "npm --workspace apps/desktop run build:mac"
+
+[tasks."build:desktop:linux"]
+description = "デスクトップアプリをビルド (Linux)"
+depends = ["build:web", "build:server"]
+run = "npm --workspace apps/desktop run build:linux"
+
+# === ユーティリティ ===
+
+[tasks.serve]
+description = "プロダクションビルドを実行してサーバーを起動"
+depends = ["build:web", "build:server"]
+run = "npm --workspace apps/server run serve"
+
+[tasks.clean]
+description = "ビルド成果物を削除"
+run = "node -e \"const fs=require('fs');['packages/shared/dist','apps/server/dist','apps/web/dist','apps/desktop/dist'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true});console.log('removed: '+d)}catch(e){}})\""

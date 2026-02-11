@@ -9,3 +9,7 @@ apps/server/dist/
 apps/desktop/server/
 apps/desktop/web/dist/
 apps/desktop/dist/
+.claude/settings.local.json
+docs/.agent/
+docs/plans/
+.mise.local.toml
