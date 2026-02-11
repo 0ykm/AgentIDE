@@ -42,7 +42,7 @@
 - [x] 単独動作の回帰テスト（Playwright検証済み: ターミナル/Explorer/Deck切替/DeckGroup全て正常）
 - [x] ノード管理UI検証（ノード管理画面表示、ノード追加モーダル、接続テスト成功確認済み）
 - [x] サーバーAPI検証（/api/node/info, /api/nodes エンドポイント動作確認済み）
-- [ ] 2ノード間の結合テスト（別ポートでの2サーバー起動テスト）
+- [x] 2ノード間の結合テスト（port 8787 + 8788で実施、ノード登録・接続テスト・リモートDeck作成・ターミナル操作すべて成功）
 - [ ] Playwright E2Eテスト（自動テストスクリプト作成）
 
 ## 引き継ぎメモ
@@ -52,3 +52,5 @@
 - CORS: CORS_ORIGIN未設定時はリクエストOriginを動的許可に変更
 - /api/node/info はauthミドルウェアの前にマウント（認証不要）
 - DeckModalにnodes propを渡してもオプショナルなのでローカルのみの場合は影響なし
+- CSP: connect-srcに`http: https:`を追加（リモートノードへのクロスオリジンHTTPリクエスト許可のため）
+- テスト用データディレクトリ: `apps/data-node-a/`, `apps/data-node-b/`（.gitignore対象外の場合は追加が必要）
