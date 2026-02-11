@@ -25,7 +25,7 @@
 - [x] タスク10: App.tsx への統合（タブ描画・コンテキストメニュー・ハンドラ・モーダル配置）
 - [x] タスク11: urlUtils.ts に groupId パラメータ追加
 - [x] タスク12: CSS スタイリング
-- [ ] タスク13: playwright-debug で動作確認
+- [x] タスク13: playwright-debug で動作確認
 
 ## 達成要件
 
@@ -253,12 +253,27 @@ playwright-debug スキルで以下を確認:
 
 ---
 
-## コミット単位
+## コミット履歴
 
-1. `feat: add deck group backend (type, DB, API)` — タスク1~5
-2. `feat: add deck group frontend state management` — タスク6~7
-3. `feat: add deck group UI (modals, tabs, context menu)` — タスク8~12
-4. チェックリスト更新
+1. `06c95e1` `feat: add deck group backend (type, DB, API)` — タスク1~5
+2. `906eb7a` `feat: add deck group frontend state management` — タスク6~7
+3. `5ef8b63` `feat: add deck group UI (modals, tabs, context menu)` — タスク8~12
+4. `251d5a4` `docs: update deck group implementation plan checklist`
+5. `df6ea1a` `fix: resolve existing TypeScript errors in EditorPane and TerminalTile`
+
+## 動作確認結果（タスク13）
+
+| 確認項目 | 結果 |
+|---------|------|
+| グループ作成（右クリック → モーダル → 作成） | OK |
+| グループタブ表示（破線ボーダー + アイコン） | OK |
+| グループクリック → 2デッキ横並び表示 | OK |
+| 個別デッキクリック → グループ選択解除 | OK |
+| グループ編集（名前変更） | OK |
+| グループ削除（確認ダイアログ付き） | OK |
+| リロード後のグループ保持（DB永続化） | OK |
+| デッキ削除時のグループ自動削除（カスケード） | OK |
+| URL state にgroupIdが反映 | OK |
 
 ## 修正ファイル一覧
 
