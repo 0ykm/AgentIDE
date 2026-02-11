@@ -197,7 +197,7 @@ export function createServer() {
   // Server startup
   server.on('listening', () => {
     const baseUrl = `http://localhost:${PORT}`;
-    console.log(`Deck IDE server listening on ${baseUrl}`);
+    console.log(`Agent IDE server listening on ${baseUrl}`);
     console.log(`UI: ${baseUrl}`);
     console.log(`API: ${baseUrl}/api`);
     console.log(`Health: ${baseUrl}/health`);

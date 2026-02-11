@@ -1,4 +1,4 @@
-# Deck IDE Spec
+# Agent IDE Spec
 
 ## Goals
 - Create and open multiple decks, including multiple decks that point to the same root.

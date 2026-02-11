@@ -1,4 +1,4 @@
-# Deck IDE
+# Agent IDE
 
 複数のターミナルを並列で管理できる軽量なWeb IDE。AIエージェント（Claude Code、Codex CLI等）を永続的に動かすことに最適化されています。
 
@@ -16,7 +16,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ [エクスプローラー] [Git] [設定]    Deck IDE                  │
+│ [エクスプローラー] [Git] [設定]    Agent IDE                 │
 ├─────────┬───────────────────────────────────────────────────┤
 │ ファイル │  Monaco Editor                                    │
 │ ツリー   │                                                   │
@@ -32,7 +32,7 @@
 
 ### Windowsデスクトップアプリ（推奨）
 
-[Releases](https://github.com/tako0614/ide/releases)から最新の`Deck-IDE-Setup-x.x.x.exe`をダウンロードしてインストール。
+[Releases](https://github.com/tako0614/ide/releases)から最新の`Agent-IDE-Setup-x.x.x.exe`をダウンロードしてインストール。
 
 ### ソースから実行
 

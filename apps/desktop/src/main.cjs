@@ -1,5 +1,5 @@
 /**
- * Deck IDE Desktop - メインエントリーポイント
+ * Agent IDE Desktop - メインエントリーポイント
  * Electronアプリケーションの起動とIPCハンドラーの登録
  */
 

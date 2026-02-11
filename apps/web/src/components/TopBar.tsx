@@ -16,7 +16,7 @@ export function TopBar({ view, workspace, apiBase, status }: TopBarProps) {
   return (
     <header className="topbar">
       <div>
-        <div className="brand">Deck IDE</div>
+        <div className="brand">Agent IDE</div>
         <div className="deck-meta">
           <span>{view === 'workspace' ? LABEL_PROJECT : LABEL_TERMINAL}</span>
           {workspace ? (

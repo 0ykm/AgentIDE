@@ -1,7 +1,7 @@
 {
   "name": "deck-ide-desktop",
-  "description": "Deck IDE server manager",
-  "author": "Deck IDE",
+  "description": "Agent IDE server manager",
+  "author": "Agent IDE",
   "private": true,
   "version": "2.10.0",
   "main": "src/main.cjs",
@@ -26,8 +26,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.deck.ide",
-    "productName": "Deck IDE",
+    "appId": "com.agent.ide",
+    "productName": "Agent IDE",
     "electronVersion": "40.0.0",
     "directories": {
       "output": "dist"
@@ -52,6 +52,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "publish": {
@@ -61,7 +65,8 @@
     },
     "win": {
       "target": "nsis",
-      "artifactName": "Deck-IDE-Setup-${version}.${ext}"
+      "icon": "build/icon.ico",
+      "artifactName": "Agent-IDE-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -71,12 +76,12 @@
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] }
       ],
-      "artifactName": "Deck-IDE-${version}-${arch}.${ext}",
+      "artifactName": "Agent-IDE-${version}-${arch}.${ext}",
       "category": "public.app-category.developer-tools"
     },
     "linux": {
       "target": ["AppImage", "deb"],
-      "artifactName": "Deck-IDE-${version}-${arch}.${ext}",
+      "artifactName": "Agent-IDE-${version}-${arch}.${ext}",
       "category": "Development"
     }
   }

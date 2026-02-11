@@ -1,10 +1,10 @@
 # @deck-ide/shared
 
-共有型定義とユーティリティ関数を提供するDeck IDEの共有パッケージです。
+共有型定義とユーティリティ関数を提供するAgent IDEの共有パッケージです。
 
 ## 概要
 
-このパッケージは、Deck IDEモノレポ全体(web, server, desktop)で使用される共通のTypeScript型定義とユーティリティ関数を提供します。
+このパッケージは、Agent IDEモノレポ全体(web, server, desktop)で使用される共通のTypeScript型定義とユーティリティ関数を提供します。
 
 ## 構成
 
@@ -64,6 +64,6 @@ Webアプリケーションでは`utils.ts`を、サーバーでは`utils-node.t
 
 ## 開発
 
-このパッケージはDeck IDEワークスペースの一部であり、npm workspacesにより自動的に他のパッケージにリンクされます。
+このパッケージはAgent IDEワークスペースの一部であり、npm workspacesにより自動的に他のパッケージにリンクされます。
 
 詳細は `/docs/shared-package.md` を参照してください。

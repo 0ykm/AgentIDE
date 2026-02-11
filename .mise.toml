@@ -1,7 +1,7 @@
 #:schema https://mise.jdx.dev/schema/mise.json
 
 # ==============================================================================
-# Deck IDE - mise configuration
+# Agent IDE - mise configuration
 # ==============================================================================
 # 使い方:
 #   mise install        - ツールのインストール

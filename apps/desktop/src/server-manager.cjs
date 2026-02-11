@@ -53,7 +53,7 @@ class ServerManager {
    * ログからサーバーURLを解析
    */
   parseServerUrl(text) {
-    const match = text.match(/Deck IDE server listening on (http[^\s]+)/);
+    const match = text.match(/(?:Deck|Agent) IDE server listening on (http[^\s]+)/);
     if (match) {
       this.serverUrl = match[1];
     }

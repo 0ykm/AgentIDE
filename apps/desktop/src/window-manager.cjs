@@ -52,13 +52,14 @@ class WindowManager {
    * システムトレイを作成
    */
   createTray() {
-    // 16x16のシンプルなアイコンを作成
-    const icon = nativeImage.createFromDataURL(
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADESURBVDiNpZMxDsIwDEV/0g4sHIGJE3ADRi7AwMbGxsIpuAoXYGZhYOMITByBgYGBSkjFKk0aWvhS5Dj+/nFsp4B/QeRkGxHuIYN/CfAGXIEBkPpEbIDzN3d2gLGZc38JkQ8EB2Bhrc0AAmACLN1Y7zMAI2DsYwdAtJYDfzTQA6ZABHwAT8DTxypgnQNk1trbD7BKKb8AeAPOwNZ9NwIqILtEvNL6yH4gJhm9AWsf2AHGwMaNOcAFOAEHYO/Ftr+Ef8EHoJpXp5CtvWMAAAAASUVORK5CYII='
-    );
+    // アプリアイコンをファイルから読み込む
+    const iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.png')
+      : path.join(__dirname, '..', 'build', 'icon.png');
+    const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip('Deck IDE Server');
+    this.tray.setToolTip('Agent IDE Server');
 
     const contextMenu = Menu.buildFromTemplate([
       {
