@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/fix-node-pty.cjs",
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "serve": "node dist/index.js",
