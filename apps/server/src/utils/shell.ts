@@ -22,15 +22,19 @@ function findGitBash(): string | null {
 }
 
 export function getDefaultShell(): string {
-  if (process.env.SHELL) return process.env.SHELL;
+  // Validate SHELL env exists before using it
+  if (process.env.SHELL && fs.existsSync(process.env.SHELL)) {
+    return process.env.SHELL;
+  }
 
   if (process.platform === 'win32') {
     return findGitBash() ?? 'powershell.exe';
   }
   if (process.platform === 'darwin') {
-    return 'zsh';
+    // Use full path - 'zsh' alone may fail when PATH is minimal (e.g. Dock launch)
+    return '/bin/zsh';
   }
-  return 'bash';
+  return '/bin/bash';
 }
 
 /** Check if a shell path points to a bash-like shell (bash, zsh, sh) */

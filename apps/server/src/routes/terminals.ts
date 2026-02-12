@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { Hono } from 'hono';
 import { spawn } from 'node-pty';
 import type { DatabaseSync } from 'node:sqlite';
@@ -66,9 +67,16 @@ export function createTerminalRouter(
 
     const env: Record<string, string> = {};
 
-    // Copy environment variables safely
+    // Server-specific env vars that should not leak into user terminals
+    const serverOnlyKeys = new Set([
+      'ELECTRON_RUN_AS_NODE',
+      'NODE_PATH',
+      'DB_PATH',
+    ]);
+
+    // Copy environment variables safely, excluding server-specific ones
     for (const [key, value] of Object.entries(process.env)) {
-      if (value !== undefined) {
+      if (value !== undefined && !serverOnlyKeys.has(key)) {
         env[key] = value;
       }
     }
@@ -89,11 +97,14 @@ export function createTerminalRouter(
     env.LC_ALL = env.LC_ALL || 'en_US.UTF-8';
     env.LC_CTYPE = env.LC_CTYPE || 'en_US.UTF-8';
 
+    // Validate cwd exists before spawning
+    const cwd = fs.existsSync(deck.root) ? deck.root : process.env.HOME || '/';
+
     const isWindows = process.platform === 'win32';
     let term;
     try {
       const spawnOptions: any = {
-        cwd: deck.root,
+        cwd,
         cols: 120,
         rows: 32,
         env
@@ -123,8 +134,8 @@ export function createTerminalRouter(
       }
     } catch (spawnError) {
       const message = spawnError instanceof Error ? spawnError.message : 'Failed to spawn terminal';
-      console.error(`Failed to spawn terminal for deck ${deck.id}:`, spawnError);
-      throw createHttpError(`Failed to create terminal: ${message}`, 500);
+      console.error(`Failed to spawn terminal for deck ${deck.id}: shell=${shell}, cwd=${cwd}, args=${JSON.stringify(shellArgs)}`, spawnError);
+      throw createHttpError(`Failed to create terminal: ${message} (shell=${shell}, cwd=${cwd})`, 500);
     }
 
     const resolvedTitle = title || `Terminal ${getNextTerminalIndex(deck.id)}`;
