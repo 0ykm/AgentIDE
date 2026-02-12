@@ -1,6 +1,7 @@
 /**
  * ポータブルビルドのzip圧縮スクリプト
- * dist/ 内の *-unpacked ディレクトリをzipファイルに圧縮する
+ * dist/ 内の *-unpacked ディレクトリ（Windows/Linux）または
+ * mac / mac-arm64 ディレクトリ（macOS）をzipファイルに圧縮する
  */
 
 const fs = require('fs');
@@ -17,12 +18,19 @@ if (!fs.existsSync(distDir)) {
 }
 
 const entries = fs.readdirSync(distDir, { withFileTypes: true });
+
+// Windows/Linux: *-unpacked ディレクトリ
 const unpackedDirs = entries.filter(
   (e) => e.isDirectory() && e.name.endsWith('-unpacked')
 );
 
-if (unpackedDirs.length === 0) {
-  console.error('[zip-portable] No *-unpacked directories found in dist/');
+// macOS: mac / mac-arm64 ディレクトリ
+const macDirs = entries.filter(
+  (e) => e.isDirectory() && (e.name === 'mac' || e.name === 'mac-arm64')
+);
+
+if (unpackedDirs.length === 0 && macDirs.length === 0) {
+  console.error('[zip-portable] No target directories found in dist/');
   process.exit(1);
 }
 
@@ -30,22 +38,24 @@ if (unpackedDirs.length === 0) {
 const platformMap = {
   'win-unpacked': 'win-x64',
   'linux-unpacked': 'linux-x64',
-  'mac-unpacked': 'mac-x64',
-  'mac-arm64-unpacked': 'mac-arm64',
+  'mac': 'mac-x64',
+  'mac-arm64': 'mac-arm64',
 };
 
-for (const dir of unpackedDirs) {
-  const platform = platformMap[dir.name] || dir.name.replace('-unpacked', '');
+/**
+ * ディレクトリをzip圧縮する
+ */
+function zipDirectory(dirName, sourceDir) {
+  const platform = platformMap[dirName] || dirName.replace('-unpacked', '');
   const zipName = `Agent-IDE-${version}-${platform}-portable.zip`;
   const zipPath = path.join(distDir, zipName);
-  const sourceDir = path.join(distDir, dir.name);
 
   // 既存のzipを削除
   if (fs.existsSync(zipPath)) {
     fs.unlinkSync(zipPath);
   }
 
-  console.log(`[zip-portable] Compressing ${dir.name} -> ${zipName}`);
+  console.log(`[zip-portable] Compressing ${dirName} -> ${zipName}`);
 
   try {
     if (process.platform === 'win32') {
@@ -62,7 +72,17 @@ for (const dir of unpackedDirs) {
     }
     console.log(`[zip-portable] Created ${zipPath}`);
   } catch (err) {
-    console.error(`[zip-portable] Failed to compress ${dir.name}: ${err.message}`);
+    console.error(`[zip-portable] Failed to compress ${dirName}: ${err.message}`);
     process.exit(1);
   }
+}
+
+// Windows/Linux: *-unpacked ディレクトリを圧縮
+for (const dir of unpackedDirs) {
+  zipDirectory(dir.name, path.join(distDir, dir.name));
+}
+
+// macOS: mac / mac-arm64 ディレクトリを圧縮
+for (const dir of macDirs) {
+  zipDirectory(dir.name, path.join(distDir, dir.name));
 }

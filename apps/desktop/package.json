@@ -73,6 +73,7 @@
       "allowToChangeInstallationDirectory": true
     },
     "mac": {
+      "icon": "build/icon-512.png",
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] }
       ],
