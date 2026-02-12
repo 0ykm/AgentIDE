@@ -51,12 +51,33 @@ const isPortable = () => {
 };
 
 /**
+ * macOS の .app バンドルパスを取得
+ * process.execPath: /path/to/Agent IDE.app/Contents/MacOS/Agent IDE
+ * 返却値: /path/to/Agent IDE.app
+ */
+const getMacAppPath = () => {
+  const appPath = path.resolve(path.dirname(process.execPath), '..', '..');
+  if (appPath.endsWith('.app')) {
+    return appPath;
+  }
+  return null;
+};
+
+/**
  * データ保存先のベースパスを取得
- * ポータブル時: exe隣の data/ フォルダ
+ * ポータブル時(Windows/Linux): exe隣の data/ フォルダ
+ * ポータブル時(macOS): .app バンドルの隣の data/ フォルダ
  * 通常時: app.getPath('userData')
  */
 const getDataBasePath = () => {
   if (isPortable()) {
+    if (process.platform === 'darwin') {
+      // macOS: .app バンドルの親ディレクトリに data/ を作成
+      const appPath = getMacAppPath();
+      if (appPath) {
+        return path.join(path.dirname(appPath), 'data');
+      }
+    }
     return path.join(path.dirname(process.execPath), 'data');
   }
   return app.getPath('userData');
@@ -158,16 +179,61 @@ const getServerEnvironment = (config = null) => {
 };
 
 /**
+ * macOS LaunchAgent plist のパスを取得
+ */
+const getMacLaunchAgentPath = () => {
+  return path.join(app.getPath('home'), 'Library', 'LaunchAgents', 'com.agent.ide.plist');
+};
+
+/**
  * 自動起動設定を取得
  */
 const getAutoStartEnabled = () => {
+  if (process.platform === 'darwin') {
+    return fs.existsSync(getMacLaunchAgentPath());
+  }
   return app.getLoginItemSettings().openAtLogin;
 };
 
 /**
  * 自動起動設定を変更
+ * macOS: LaunchAgent plist を作成/削除
+ * Windows/Linux: Electron の setLoginItemSettings を使用
  */
 const setAutoStartEnabled = (enabled) => {
+  if (process.platform === 'darwin') {
+    const plistPath = getMacLaunchAgentPath();
+    if (enabled) {
+      const appPath = getMacAppPath() || process.execPath;
+      const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent.ide</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>${appPath}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+`;
+      const dir = path.dirname(plistPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(plistPath, plistContent, 'utf-8');
+    } else {
+      if (fs.existsSync(plistPath)) {
+        fs.unlinkSync(plistPath);
+      }
+    }
+    return;
+  }
   app.setLoginItemSettings({
     openAtLogin: Boolean(enabled),
     openAsHidden: true
